@@ -23,7 +23,7 @@ if profile == 'baseline':
     datas += copy_metadata('pymobiledevice3', recursive=True)
 else:
     datas += collect_data_files('pymobiledevice3')
-    datas += copy_metadata('pymobiledevice3')
+    datas += copy_metadata('pymobiledevice3', recursive=True)
     # GeoPort directly imports device service APIs; no interactive CLI is offered.
     excludes += ['pymobiledevice3.cli', 'pymobiledevice3.tunneld', 'fastapi',
                  'fastapi_cli', 'fastapi_cloud_cli', 'uvicorn', 'sentry_sdk',

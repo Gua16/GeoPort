@@ -8,6 +8,7 @@ const pointText = point => point ? `${point.lat.toFixed(6)}, ${point.lng.toFixed
 
 function notice(message, error = false) {
   $("notice").textContent = message;
+  $("notice").dataset.context = $("preferences-panel").hidden ? "workspace" : "preferences";
   $("operation-status").hidden = Boolean(message);
   $("notice").classList.toggle("error", error);
   $("notice").classList.toggle("processing", message === "处理中…");
@@ -169,6 +170,10 @@ $("quit").addEventListener("click", async () => {
 });
 
 function activateTab(selected, focus = false) {
+  if ($("notice").dataset.context !== selected) {
+    $("notice").textContent = "";
+    $("operation-status").hidden = false;
+  }
   for (const name of ["workspace", "preferences"]) {
     const active = name === selected;
     const tab = $(name + "-tab");
