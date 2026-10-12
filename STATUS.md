@@ -1,14 +1,16 @@
 # 当前状态
 
-## 进行中
-- 2026-10-12 Codex：用户要求集成系统管理员授权弹窗。负责 `src/macos_launcher.py`、`src/main.py`、启动回归测试、macOS 打包与文档；目标为双击 APP 后授权、普通用户打开浏览器、取消授权退出。构建并替换 0.1.2，更新现有 PR #2。
-
 ## 完成
+- 2026-10-12 Codex：完成 APP 系统授权启动，负责 `src/macos_launcher.py`、`src/main.py`、启动回归测试、macOS 打包与文档。0.1.2 (3) 已替换 Applications 安装版，0.1.1 保留为 `work/GeoPort-Lite-0.1.1-backup.app`。代码提交 `8752f1cf1513ff39fad1f0ae2f7dbd529b69322e` 已更新到现有 PR #2。
 - 2026-10-12 Codex：完成 macOS USB 隧道源码修复，负责 `src/main.py`、`tests/test_tunnel.py`、`docs/MACOS_TEST.md`、`README.md`。基于测试包 commit `5d35a87e78f53e78bf92efe37c751f70330be18d`，GitHub 分支 `fix/device-tunnel-errors`，代码提交 `255198a165fe84319eb75413b43ac57a1c2b2c08`，已发布 [PR #2](https://github.com/Gua16/GeoPort/pull/2)，目标 `codex/geoport-lite-macos-arm64`，未合并。
 
 - 2026-10-12 Codex：用户授权后已构建、验证并安装 0.1.1 (2)，替换 `/Applications/GeoPort Lite.app`；原应用保留为本次聊天工作目录下 `work/GeoPort-Lite-0.1.0-backup.app`。负责 `packaging/macos/GeoPortLite.spec` 与安装验证文档。代码更新通过已连接 GitHub 发布，未修改登录凭据。
 
 ## 已验证
+- 2026-10-12 Codex：43 项 unittest 通过，包括系统授权取消和失败、等待匹配后台实例、保留原用户配置路径、复用已有后台。取消授权行为由回归测试验证，未单独目视测试系统取消按钮。
+- 2026-10-12 Codex：实际 APP 授权启动后浏览器显示 GeoPort，用户确认已打开。后台为 root，Safari 为 wilson；安装版后台可执行路径为 `/Applications/GeoPort Lite.app/Contents/MacOS/GeoPortLite`，健康检查确认 administrator=true。原用户配置目录保留，未读取或保存密码。
+- 2026-10-12 Codex：集成授权启动后的真实 iPhone 连接、直接设置坐标、停止和断开通过，未改变用户保存的基准坐标。构建版与安装版均通过冻结程序启动、资源、配置持久化与退出检查；签名和 DMG 校验通过。最终安装版界面保留打开，设备未连接、模拟未启动，remoted 未暂停。
+- 2026-10-12 Codex：实际测试发现 macOS nohup 在 SecurityAgent 无控制终端环境中报错；已改为 shell 忽略 HUP 后启动后台，实际授权启动通过。没有修改系统安全设置。
 - 2026-10-12 Codex：Mac 为 macOS 27.0.1 (26A434)，USB iPhone 为 iOS 27.0.1 (24A446)。安装包以普通用户运行；用户属于 admin 组。
 - 2026-10-12 Codex：源码 TCP 线程捕获异常后返回 Flask 响应，连接请求无法收到线程返回值；TCP 路径没有恢复 remoted。
 - 2026-10-12 Codex：未修复源码捕获真实 traceback：暂停 remoted 权限不足，约 3 ms 内失败，页面延迟 30 秒显示超时。修复后相同设备普通权限在 0.133 秒返回真实 AccessDeniedError。
@@ -22,6 +24,6 @@
 - 2026-10-12 Codex：手机地图画面与恢复后的真实 GPS 坐标未目视验证。Wi-Fi、旧 iOS QUIC 未做实机验证。
 
 ## 交付与接续
-- 2026-10-12 Codex：DMG、校验文件、安装版管理员启动脚本、源码补丁和验证说明保存在当前聊天的 `outputs/`。原始日志及设备命令结果保存在 `work/`，不包含密码或配对密钥。DMG 中 SOURCE_COMMIT 为代码提交 `255198a165fe84319eb75413b43ac57a1c2b2c08`。
-- 下一步第一个动作：运行 `outputs/Start with Admin.command` 启动已安装修复版，端口 54321，密码在本机 Terminal 输入。GitHub PR 尚未合并；不把管理员测试配置当作用户正式配置。
-- sudo 密码只由用户在本机终端输入。不修改系统安全设置。2026-10-12 用户已授权本次替换应用和 GitHub 推送。`/stop_location` 返回文本；自动验证应读取随后 `/api/settings` 的状态，不把文本响应当成 JSON。
+- 2026-10-12 Codex：0.1.1 与 0.1.2 DMG、校验文件、备用管理员启动脚本、源码补丁和验证说明保存在当前聊天的 `outputs/`。原始日志及设备命令结果保存在 `work/`，不包含密码或配对密钥。0.1.2 DMG 中 SOURCE_COMMIT 为代码提交 `8752f1cf1513ff39fad1f0ae2f7dbd529b69322e`。
+- 下一步第一个动作：直接双击 `/Applications/GeoPort Lite.app`。需要授权时在 macOS 系统弹窗输入密码；系统可短暂复用已有授权，已运行后台会直接打开界面。管理员脚本仅为备用入口。GitHub PR 尚未合并；不把管理员测试配置当作用户正式配置。
+- 管理员密码由用户在 macOS 系统弹窗输入；备用 sudo 脚本在本机 Terminal 输入。不修改系统安全设置。2026-10-12 用户已授权本次替换应用和 GitHub 推送。`/stop_location` 返回文本；自动验证应读取随后 `/api/settings` 的状态，不把文本响应当成 JSON。
