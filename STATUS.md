@@ -1,5 +1,8 @@
 # 当前状态
 
+## 进行中
+- 2026-10-12 Codex：用户要求集成系统管理员授权弹窗。负责 `src/macos_launcher.py`、`src/main.py`、启动回归测试、macOS 打包与文档；目标为双击 APP 后授权、普通用户打开浏览器、取消授权退出。构建并替换 0.1.2，更新现有 PR #2。
+
 ## 完成
 - 2026-10-12 Codex：完成 macOS USB 隧道源码修复，负责 `src/main.py`、`tests/test_tunnel.py`、`docs/MACOS_TEST.md`、`README.md`。基于测试包 commit `5d35a87e78f53e78bf92efe37c751f70330be18d`，GitHub 分支 `fix/device-tunnel-errors`，代码提交 `255198a165fe84319eb75413b43ac57a1c2b2c08`，已发布 [PR #2](https://github.com/Gua16/GeoPort/pull/2)，目标 `codex/geoport-lite-macos-arm64`，未合并。
 

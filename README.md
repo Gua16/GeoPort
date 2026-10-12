@@ -4,6 +4,8 @@
 
 使用 Python 3.12。创建 `.venv` 后执行 `python -m pip install --require-hashes -r requirements.lock`。普通启动：`.venv/bin/python src/main.py --ui-mode lite --port 54322`。iOS 17+ 的 macOS 设备隧道需要管理员权限；请在本机 Terminal 执行 `sudo GEOPORT_CONFIG_DIR="$PWD/test-config" "$PWD/.venv/bin/python" src/main.py --ui-mode lite --port 54322`，密码仅在本地 sudo 提示输入。`test-config` 用于独立验证，正常使用可指定已有配置目录。
 
+macOS 0.1.2 安装包：双击 APP，在系统授权弹窗输入管理员密码；取消授权退出。授权后由普通用户打开浏览器，后台继续使用原用户配置目录。无需管理员脚本；脚本保留为备用入口。启动日志为 `~/Library/Logs/GeoPort/startup.log`。
+
 验证：`.venv/bin/python -m unittest discover -s tests`。`src/` 为程序，`tests/` 为回归测试，`docs/` 为测试说明，`packaging/` 为构建脚本。保持锁定设备 API 依赖，不修改系统安全设置。
 
 文档索引：[实机测试与管理员启动](docs/MACOS_TEST.md)、[当前修复状态与验证边界](STATUS.md)。

@@ -1,20 +1,20 @@
 # GeoPort Lite · macOS 实机测试包
 
 目标：Apple 芯片（arm64），macOS 15 或更新。包含 Python 与依赖，不需要安装 Python。
-源码基于仓库 2.3.3，简洁版测试包版本为 0.1.1，并非上游 4.0.2 正式发行版。
+源码基于仓库 2.3.3，简洁版测试包版本为 0.1.2，并非上游 4.0.2 正式发行版。
 
 ## 安装与首次启动
 
 1. 打开 `GeoPort-Lite-macOS-15-arm64-test.dmg`。
 2. 将 `GeoPort Lite.app` 拖进 `Applications`。
-3. 启动该应用。浏览器将在本地服务就绪后打开简洁界面。
+3. 双击应用，在 macOS 系统授权弹窗中输入管理员密码。授权成功后启动后台，服务就绪后由普通用户打开浏览器。取消授权则退出，不启动后台。密码由系统处理，GeoPort 不读取或保存。
 4. 如果 Gatekeeper 阻止打开，在“系统设置 → 隐私与安全性”中对这个应用选择“仍要打开”，并按系统提示确认。
 
 这是临时签名的测试包，未经过 Apple Developer ID 签名或 Apple 公证。不要关闭整个系统的 Gatekeeper，也不需要安装证书或在聊天中提交任何密码。DMG 附有 SHA-256 校验文件，可在下载目录使用 `shasum -a 256 -c GeoPort-Lite-macOS-15-arm64-test.dmg.sha256` 校验完整性。
 
-如需要管理员权限（通常是 iOS 17+ 的隧道连接），先在页面点“退出 GeoPort”，然后打开 DMG 中的 `Start with Admin.command`。脚本在本机终端请求 sudo 密码，浏览器仍由普通用户打开。必须先把应用拖进 Applications；保留这个脚本以便以后启动。若系统阻止该脚本，同样使用系统的“仍要打开”确认。
+0.1.2 的 APP 已集成管理员授权，不需要管理员脚本。DMG 中的 `Start with Admin.command` 保留为命令行备用入口；脚本仍只在本机 Terminal 请求 sudo 密码。`--no-browser` 的无界面验证启动不自动提权，源码启动保持原有命令行行为。
 
-普通与管理员启动共用 `~/Library/Application Support/GeoPort/config.json`。退出软件或停止模拟不删除基准坐标。关闭浏览器标签页不等于退出服务器；用页面底部的“退出 GeoPort”按钮停止并退出，管理员终端也可使用 Control-C。
+APP 授权后继续使用普通用户的 `~/Library/Application Support/GeoPort/config.json`。启动日志在 `~/Library/Logs/GeoPort/startup.log`。退出软件或停止模拟不删除基准坐标。关闭浏览器标签页不等于退出服务器；用页面底部的“退出 GeoPort”按钮停止并退出，备用管理员终端也可使用 Control-C。
 
 ## 推荐实机测试顺序
 

@@ -57,6 +57,7 @@ parser.add_argument('--port', type=int, help='Specify port number to listen on f
 parser.add_argument('--wifihost', type=str, help='Specify the wifi IP address to connect to')
 parser.add_argument('--udid', type=str, help='Specify the device udid to target')
 parser.add_argument('--ui-mode', choices=('lite', 'map'), help='Override the saved startup interface')
+parser.add_argument('--launch-id', help=argparse.SUPPRESS)
 args = parser.parse_args() if __name__ == '__main__' else parser.parse_args([])
 #========= Arg Parser ========
 
@@ -1320,7 +1321,8 @@ def exit_app():
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok', 'app': 'GeoPort', 'launch_id': args.launch_id,
+                    'administrator': hasattr(os, 'geteuid') and os.geteuid() == 0})
 
 
 @app.route('/')
@@ -1403,12 +1405,31 @@ def try_bind_listener_on_free_port():
         chosen_port = flask_port
 
     if is_port_in_use(chosen_port):
+        if args.launch_id:
+            raise RuntimeError(f'GeoPort startup port {chosen_port} is occupied')
         chosen_port = random.randint(min_port, max_port)
     logger.info(f'Serving: http://127.0.0.1:{chosen_port}')
     return chosen_port
 
 
 if __name__ == '__main__':
+    from macos_launcher import needs_authorization, launch, AuthorizationCancelled, show_error
+    if needs_authorization(sys.platform, getattr(sys, 'frozen', False), args.no_browser,
+                           os.geteuid() if hasattr(os, 'geteuid') else 0):
+        try:
+            forwarded = []
+            for option, value in [('--ui-mode', args.ui_mode), ('--wifihost', args.wifihost),
+                                  ('--udid', args.udid)]:
+                if value is not None:
+                    forwarded.extend([option, value])
+            launch(sys.executable, forwarded, settings_store.path.parent, args.port or flask_port)
+        except AuthorizationCancelled:
+            logger.info('Administrator authorization cancelled; GeoPort was not started')
+        except Exception as exc:
+            logger.exception('GeoPort administrator launch failed')
+            show_error(str(exc))
+            sys.exit(1)
+        sys.exit(0)
     #create_geoport_folder()
     if is_windows:
         try:

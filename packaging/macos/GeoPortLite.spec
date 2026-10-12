@@ -26,7 +26,7 @@ exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='GeoPortLite',
 collect = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='GeoPortLite')
 app = BUNDLE(collect, name='GeoPort Lite.app', bundle_identifier='app.geoport.lite.test',
              info_plist={'CFBundleDisplayName': 'GeoPort Lite',
-                         'CFBundleShortVersionString': '0.1.1',
-                         'CFBundleVersion': '2',
+                         'CFBundleShortVersionString': '0.1.2',
+                         'CFBundleVersion': '3',
                          'LSMinimumSystemVersion': '15.0',
                          'NSHighResolutionCapable': True})
