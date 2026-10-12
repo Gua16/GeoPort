@@ -1,12 +1,15 @@
 # 当前状态
 
 ## 完成
+- 2026-10-12 Codex：完成安装版 0.1.2 (3) 本机 USB 实机测试，负责实机测试记录和本文件。连接、基准设置、5 次界面随机偏移、恢复基准、停止、重启保存、界面重连与未连接拒绝通过。用户确认 iPhone 蓝点移到广州、偏移后小幅移动、停止后恢复实际位置。原配置逐字节恢复并重新加载。
 - 2026-10-12 Codex：完成 APP 系统授权启动，负责 `src/macos_launcher.py`、`src/main.py`、启动回归测试、macOS 打包与文档。0.1.2 (3) 已替换 Applications 安装版，0.1.1 保留为 `work/GeoPort-Lite-0.1.1-backup.app`。代码提交 `8752f1cf1513ff39fad1f0ae2f7dbd529b69322e` 已更新到现有 PR #2。
 - 2026-10-12 Codex：完成 macOS USB 隧道源码修复，负责 `src/main.py`、`tests/test_tunnel.py`、`docs/MACOS_TEST.md`、`README.md`。基于测试包 commit `5d35a87e78f53e78bf92efe37c751f70330be18d`，GitHub 分支 `fix/device-tunnel-errors`，代码提交 `255198a165fe84319eb75413b43ac57a1c2b2c08`，已发布 [PR #2](https://github.com/Gua16/GeoPort/pull/2)，目标 `codex/geoport-lite-macos-arm64`，未合并。
 
 - 2026-10-12 Codex：用户授权后已构建、验证并安装 0.1.1 (2)，替换 `/Applications/GeoPort Lite.app`；原应用保留为本次聊天工作目录下 `work/GeoPort-Lite-0.1.0-backup.app`。负责 `packaging/macos/GeoPortLite.spec` 与安装验证文档。代码更新通过已连接 GitHub 发布，未修改登录凭据。
 
 ## 已验证
+- 2026-10-12 Codex：本次 0.1.2 界面偏移距离约为 169.212、281.186、145.746、239.755、115.850 米，全部小于 300 米；数字来自界面六位小数坐标，存在显示舍入。每次点击产生一个新的界面坐标，保存基准保持不变。
+- 2026-10-12 Codex：保存广州基准与半径后，通过界面退出并重新直接打开 APP，基准和 300 米半径保留，设备未连接、模拟未自动启动。未连接时请求设置基准返回 HTTP 409；界面重连、设置基准、停止、断开通过。测试结束恢复原配置，文件仍属于 wilson；APP 最终空闲、无连接、无模拟，remoted 未暂停。
 - 2026-10-12 Codex：43 项 unittest 通过，包括系统授权取消和失败、等待匹配后台实例、保留原用户配置路径、复用已有后台。取消授权行为由回归测试验证，未单独目视测试系统取消按钮。
 - 2026-10-12 Codex：实际 APP 授权启动后浏览器显示 GeoPort，用户确认已打开。后台为 root，Safari 为 wilson；安装版后台可执行路径为 `/Applications/GeoPort Lite.app/Contents/MacOS/GeoPortLite`，健康检查确认 administrator=true。原用户配置目录保留，未读取或保存密码。
 - 2026-10-12 Codex：集成授权启动后的真实 iPhone 连接、直接设置坐标、停止和断开通过，未改变用户保存的基准坐标。构建版与安装版均通过冻结程序启动、资源、配置持久化与退出检查；签名和 DMG 校验通过。最终安装版界面保留打开，设备未连接、模拟未启动，remoted 未暂停。
@@ -21,7 +24,7 @@
 - 2026-10-12 Codex：安装版管理员 USB 连接在 0.271 秒成功；真实设备设置基准、随机偏移 5 次、恢复基准、停止、断开通过。偏移距离为 121.294、88.295、282.699、288.364、140.990 米，均在 300 米内。测试配置隔离，最终测试进程已退出，remoted 未暂停。
 
 ## 未验证
-- 2026-10-12 Codex：手机地图画面与恢复后的真实 GPS 坐标未目视验证。Wi-Fi、旧 iOS QUIC 未做实机验证。
+- 2026-10-12 Codex：手机地图变化和停止恢复由用户目视确认，Codex 未直接读取手机画面或真实 GPS 坐标。Wi-Fi、旧 iOS QUIC、拔线错误、断互联网与地图模式未纳入本次 USB 重点测试。
 
 ## 交付与接续
 - 2026-10-12 Codex：0.1.1 与 0.1.2 DMG、校验文件、备用管理员启动脚本、源码补丁和验证说明保存在当前聊天的 `outputs/`。原始日志及设备命令结果保存在 `work/`，不包含密码或配对密钥。0.1.2 DMG 中 SOURCE_COMMIT 为代码提交 `8752f1cf1513ff39fad1f0ae2f7dbd529b69322e`。
