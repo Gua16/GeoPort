@@ -9,7 +9,7 @@ import threading
 
 from location_math import coordinates, radius_m
 
-DEFAULTS = {"schema_version": 1, "base_location": None, "random_radius_m": 300, "ui_mode": "lite"}
+DEFAULTS = {"schema_version": 1, "base_location": None, "base_history": [], "random_radius_m": 300, "ui_mode": "lite"}
 
 
 def config_path():
@@ -33,6 +33,16 @@ def validated(data):
         if not isinstance(base, dict):
             raise ValueError("Invalid base location")
         result["base_location"] = coordinates(base.get("lat"), base.get("lng"))
+    history = data.get('base_history', [result['base_location']] if base is not None else [])
+    if not isinstance(history, list):
+        raise ValueError('Invalid base coordinate history')
+    for item in history:
+        if not isinstance(item, dict):
+            raise ValueError('Invalid base coordinate history')
+        point = coordinates(item.get('lat'), item.get('lng'))
+        if point not in result['base_history']:
+            result['base_history'].append(point)
+    result['base_history'] = result['base_history'][:5]
     result["random_radius_m"] = radius_m(data.get("random_radius_m", 300))
     if data.get("ui_mode", "lite") not in ("lite", "map"):
         raise ValueError("UI mode must be lite or map")
@@ -61,6 +71,10 @@ class SettingsStore:
     def update(self, **changes):
         with self._lock:
             data = validated({**self._data, **changes})
+            if 'base_location' in changes and data['base_location'] is not None:
+                point = data['base_location']
+                data['base_history'] = [point] + [p for p in data['base_history'] if p != point]
+                data['base_history'] = data['base_history'][:5]
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temporary = None
             try:

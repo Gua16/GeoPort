@@ -234,6 +234,7 @@ body.dark-mode .modal-footer button {
 }
 
     </style>
+<script src="{{ url_for('static', filename='lifecycle.js') }}" defer></script>
 </head>
 
 <body>
@@ -266,7 +267,7 @@ body.dark-mode .modal-footer button {
 <div class="d-flex flex-column align-items-center flex-md-row container">
     <h4 class="my-0 mx-auto font-weight-normal">GeoPort - Your location, Anywhere!</h4>
     <a id="about-btn" class="btn btn-outline-primary pl-4 pr-4" href="#" title="GeoPort" style="display: none;">About</a>
-    <a id="exit-btn" class="btn btn-outline-primary pl-4 pr-4 ml-4" href="#" title="GeoPort" onclick="exitApp()">Exit</a>
+    <a id="exit-btn" class="btn btn-outline-primary pl-4 pr-4 ml-4" href="#" title="GeoPort" onclick="event.preventDefault(); exitApp()">Exit</a>
 </div>
 
 
@@ -2306,22 +2307,13 @@ function stopLocation() {
         stopLocationButton.disabled = !enableButton;
     }
 
-    function exitApp() {
-        console.log('Exit App function called');
-
+    async function exitApp() {
         try {
-            // Display a non-blocking modal dialog indicating server shutdown
-            $('#aboutModal').modal('hide');
+            await mapRequest('/exit', 'POST', {});
             $('#shutdownModal').modal('show');
-
-            // Use navigator.sendBeacon to make the POST request without waiting for a response
-            const data = JSON.stringify({});
-            navigator.sendBeacon('/exit', data);
-            window.open('', '_self', ''); window.close();
-
-            console.log('POST request sent using sendBeacon');
+            window.GeoPortPage.exited();
         } catch (error) {
-            console.error('Error during server shutdown:', error);
+            alert('退出失败：' + error.message);
         }
     }
 

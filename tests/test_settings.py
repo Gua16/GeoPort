@@ -9,6 +9,31 @@ from settings import SettingsStore
 
 
 class SettingsTests(unittest.TestCase):
+    def test_history_mru_limit_dedup_restart_and_no_radius_update(self):
+        for i in range(7):
+            self.set_history_point(i)
+        expected = [{'lat':i,'lng':i} for i in [6,5,4,3,2]]
+        self.assertEqual(self.store.read()['base_history'], expected)
+        self.set_history_point(4)
+        self.assertEqual(self.store.read()['base_history'], [expected[2],expected[0],expected[1],expected[3],expected[4]])
+        before = self.store.read()['base_history']
+        self.store.update(random_radius_m=500)
+        self.assertEqual(SettingsStore(self.path).read()['base_history'], before)
+
+    def set_history_point(self, i):
+        self.store.update(base_location={'lat':i,'lng':i})
+
+    def test_history_failed_save_does_not_move_or_append(self):
+        self.set_history_point(1)
+        before = self.store.read()
+        with patch('settings.os.replace', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError): self.set_history_point(2)
+        self.assertEqual(self.store.read(), before)
+        self.assertEqual(SettingsStore(self.path).read(), before)
+
+    def test_legacy_base_is_imported_as_first_history_entry(self):
+        self.path.write_text('{"schema_version":1,"base_location":{"lat":1,"lng":2}}')
+        self.assertEqual(SettingsStore(self.path).read()['base_history'], [{'lat':1,'lng':2}])
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name)/'config.json'

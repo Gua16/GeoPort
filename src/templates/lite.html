@@ -6,6 +6,7 @@
   <title>GeoPort · 简洁模式</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='lite.css') }}">
   <script src="{{ url_for('static', filename='lite.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='lifecycle.js') }}" defer></script>
 </head>
 <body>
   <main>
@@ -27,6 +28,9 @@
         <div class="grid"><label>纬度<input id="latitude" type="number" min="-90" max="90" step="any" required placeholder="-90 至 90"></label><label>经度<input id="longitude" type="number" min="-180" max="180" step="any" required placeholder="-180 至 180"></label></div>
         <button type="submit" id="save-base">保存基准</button>
       </form>
+      <label for="base-history">最近保存的基准（最多 5 条）</label>
+      <select id="base-history"><option value="">尚无历史记录</option></select>
+      <p class="hint">选择历史只填入坐标，点击“保存基准”后生效，不会自动定位。</p>
       <p class="hint">只有保存才会更改基准。随机偏移和停止模拟都会保留它。</p>
     </section>
     <section aria-labelledby="random-title">

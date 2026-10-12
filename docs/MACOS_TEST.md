@@ -1,7 +1,7 @@
 # GeoPort Lite · macOS 实机测试包
 
 目标：Apple 芯片（arm64），macOS 15 或更新。包含 Python 与依赖，不需要安装 Python。
-源码基于仓库 2.3.3，简洁版测试包版本为 0.1.2，并非上游 4.0.2 正式发行版。
+源码基于仓库 2.3.3，简洁版测试包版本为 0.1.3，并非上游 4.0.2 正式发行版。
 
 ## 安装与首次启动
 
@@ -14,7 +14,7 @@
 
 0.1.2 的 APP 已集成管理员授权，不需要管理员脚本。DMG 中的 `Start with Admin.command` 保留为命令行备用入口；脚本仍只在本机 Terminal 请求 sudo 密码。`--no-browser` 的无界面验证启动不自动提权，源码启动保持原有命令行行为。
 
-APP 授权后继续使用普通用户的 `~/Library/Application Support/GeoPort/config.json`。启动日志在 `~/Library/Logs/GeoPort/startup.log`。退出软件或停止模拟不删除基准坐标。关闭浏览器标签页不等于退出服务器；用页面底部的“退出 GeoPort”按钮停止并退出，备用管理员终端也可使用 Control-C。
+APP 授权后继续使用普通用户的 `~/Library/Application Support/GeoPort/config.json`。启动日志在 `~/Library/Logs/GeoPort/startup.log`。退出软件或停止模拟不删除基准和最近 5 条历史。点击“退出 GeoPort”会停止模拟、退出服务并尝试关闭当前标签页。关闭最后一个 GeoPort 页面后等待 120 秒自动停止并退出；期间重新打开可取消退出。备用管理员终端也可使用 Control-C。
 
 ## 推荐实机测试顺序
 

@@ -14,6 +14,18 @@ import main
 
 
 class TunnelTests(unittest.TestCase):
+    def test_published_tunnel_cleanup_failure_is_not_reported_as_success(self):
+        def worker():
+            main._publish_tunnel(SimpleNamespace(address='::1',port=1234))
+            raise OSError('close failed')
+        with self.assertLogs('GeoPort',level='ERROR'):
+            thread=main._start_tunnel(worker)
+            thread.join(2)
+        try:
+            with self.assertRaisesRegex(main.LocationError,'cleanup failed: close failed'):
+                main._stop_tunnels()
+        finally:
+            thread.geoport_failure=None
     def setUp(self):
         main._stop_tunnels()
 

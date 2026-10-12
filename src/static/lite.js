@@ -40,6 +40,13 @@ function render() {
   $("current-display").textContent = saved.current_location ? pointText(saved.current_location) : "尚未应用 / 已停止";
   $("location-status").textContent = states[saved.location_status] || saved.location_status;
   $("device-status").textContent = saved.device_connection ? `已连接 · ${saved.device_connection.connType} · iOS ${saved.device_connection.ios_version}` : "尚未连接设备";
+  const history = saved.base_history || [];
+  const signature = JSON.stringify(history);
+  if ($("base-history").dataset.entries !== signature) {
+    $("base-history").replaceChildren(new Option(history.length ? "选择历史基准" : "尚无历史记录", ""));
+    history.forEach(point => $("base-history").add(new Option(pointText(point), JSON.stringify(point))));
+    $("base-history").dataset.entries = signature;
+  }
   controls();
 }
 async function sync(initial = false) {
@@ -105,6 +112,13 @@ $("base-form").addEventListener("submit", event => {
   event.preventDefault();
   run(() => api("/api/base-location", "PUT", {lat: Number($("latitude").value), lng: Number($("longitude").value)}), "基准坐标已保存；尚未应用到设备。" );
 });
+$("base-history").addEventListener("change", () => {
+  if (!$("base-history").value) return;
+  const point = JSON.parse($("base-history").value);
+  $("latitude").value = point.lat;
+  $("longitude").value = point.lng;
+  notice("历史坐标已填入，请点击保存基准。尚未应用到设备。");
+});
 $("radius").addEventListener("change", () => {
   if (!$("radius").reportValidity()) return;
   run(() => api("/api/settings", "PUT", {random_radius_m: Number($("radius").value)}), "偏移半径已保存。" )
@@ -127,7 +141,8 @@ $("quit").addEventListener("click", async () => {
     await api("/exit", "POST", {});
     clearInterval(statePoll);
     document.querySelectorAll("button,input,select").forEach(element => { element.disabled = true; });
-    notice("GeoPort 已退出，可以关闭此页面。");
+    notice("服务已退出，请关闭此页面。");
+    window.GeoPortPage?.exited();
   } catch (error) {
     notice(error.message, true);
     busy = false;

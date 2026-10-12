@@ -6,6 +6,8 @@
 
 macOS 0.1.2 安装包：双击 APP，在系统授权弹窗输入管理员密码；取消授权退出。授权后由普通用户打开浏览器，后台继续使用原用户配置目录。无需管理员脚本；脚本保留为备用入口。启动日志为 `~/Library/Logs/GeoPort/startup.log`。
 
+0.1.3 新增最近 5 条基准历史：仅成功保存时更新，去重、最新在前、重启保留。选择历史不会自动定位。退出按钮清理设备后关闭页面；最后一个页面关闭 120 秒后自动退出，期间重开取消。页面在线状态使用本地 SSE，后台标签不依赖 JavaScript 定时心跳。
+
 验证：`.venv/bin/python -m unittest discover -s tests`。`src/` 为程序，`tests/` 为回归测试，`docs/` 为测试说明，`packaging/` 为构建脚本。保持锁定设备 API 依赖，不修改系统安全设置。
 
 文档索引：[实机测试与管理员启动](docs/MACOS_TEST.md)、[当前修复状态与验证边界](STATUS.md)、[页面与服务退出需求](docs/LIFECYCLE_REQUIREMENTS.md)、[基准坐标历史需求](docs/BASE_HISTORY_REQUIREMENTS.md)。

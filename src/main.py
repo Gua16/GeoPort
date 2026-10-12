@@ -23,7 +23,10 @@ from location_math import coordinates, random_offset
 from location_service import LocationError, LocationService
 from settings import SettingsStore
 
-from flask import Flask, jsonify, render_template, request, redirect
+from flask import Flask, jsonify, render_template, request, redirect, Response, stream_with_context
+import uuid
+from page_sessions import PageSessions
+from device_tunnel import CoreDeviceTunnelProxy
 from urllib3.exceptions import InsecureRequestWarning, ConnectionError
 from contextlib import asynccontextmanager
 
@@ -36,7 +39,7 @@ from pymobiledevice3.services.dvt.dvt_secure_socket_proxy import DvtSecureSocket
 from pymobiledevice3.services.dvt.instruments.location_simulation import LocationSimulation
 from pymobiledevice3.remote.remote_service_discovery import RemoteServiceDiscoveryService
 from pymobiledevice3.remote.utils import stop_remoted_if_required, resume_remoted_if_required, get_rsds
-from pymobiledevice3.remote.tunnel_service import create_core_device_tunnel_service_using_rsd, get_remote_pairing_tunnel_services, start_tunnel, create_core_device_tunnel_service_using_remotepairing, get_core_device_tunnel_services, CoreDeviceTunnelProxy
+from pymobiledevice3.remote.tunnel_service import create_core_device_tunnel_service_using_rsd, get_remote_pairing_tunnel_services, start_tunnel, create_core_device_tunnel_service_using_remotepairing, get_core_device_tunnel_services
 #from pymobiledevice3.cli.remote import install_driver_if_required
 from pymobiledevice3.osu.os_utils import get_os_utils
 from pymobiledevice3.bonjour import DEFAULT_BONJOUR_TIMEOUT, browse_mobdev2
@@ -922,6 +925,9 @@ def _stop_tunnels():
         thread.join(timeout=10)
         if thread.is_alive():
             raise LocationError('Previous device tunnel is still closing; retry after it exits')
+        if (thread.geoport_failure is not None and thread.geoport_ready.done()
+                and thread.geoport_ready.exception() is None):
+            raise LocationError(f'Device tunnel cleanup failed: {thread.geoport_failure}', 502) from thread.geoport_failure
     tunnel_threads.clear()
     rsd_data_map.clear()
     rsd_host = rsd_port = rsd_data = None
@@ -1306,8 +1312,7 @@ def cancel_async_tasks():
 
 
 
-@app.route('/exit', methods=['POST'])
-def exit_app():
+def exit_service():
     logger.warning("Exit GeoPort")
     with location_service.connection_change():
         _stop_tunnels()
@@ -1316,6 +1321,35 @@ def exit_app():
         threading.Event().wait(0.25)
         os._exit(0)
     threading.Thread(target=finish, name='GeoPort-exit', daemon=True).start()
+
+
+page_sessions = PageSessions(exit_service)
+
+
+@app.route('/api/page-session')
+def page_session():
+    origin = request.headers.get('Origin')
+    if origin and origin != request.host_url.rstrip('/'):
+        return jsonify({'error': 'Origin not allowed'}), 403
+    token = uuid.uuid4().hex
+    if not page_sessions.opened(token):
+        return jsonify({'error': 'GeoPort is exiting'}), 409
+    @stream_with_context
+    def events():
+        try:
+            while True:
+                yield ': GeoPort page connected\n\n'
+                threading.Event().wait(1)
+        finally:
+            page_sessions.closed(token)
+    response = Response(events(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+
+@app.route('/exit', methods=['POST'])
+def exit_app():
+    exit_service()
     return jsonify({'success': True, 'message': 'GeoPort is shutting down'})
 
 
@@ -1463,7 +1497,8 @@ if __name__ == '__main__':
 
     #threading.Thread(target=open_browser).start()
 
-    app.run(debug=False, use_reloader=False, port=chosen_port, host='127.0.0.1')
+    page_sessions.watch(logger)
+    app.run(debug=False, use_reloader=False, port=chosen_port, host='127.0.0.1', threaded=True)
 
 
 

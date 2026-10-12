@@ -187,3 +187,25 @@ class APITests(unittest.TestCase):
         self.assertEqual(thread.call_args.kwargs['name'],'GeoPort-exit')
         thread.return_value.start.assert_called_once()
         exit_process.assert_not_called()
+
+    def test_history_api_and_random_do_not_add_history(self):
+        for i in range(7):
+            response = self.client.put('/api/base-location',json={'lat':i,'lng':i})
+            self.assertEqual(response.status_code,200)
+        history = self.store.read()['base_history']
+        self.assertEqual(len(history),5)
+        self.service.connected({'udid':'fake'})
+        self.client.post('/api/location/apply',json={'mode':'random'})
+        self.assertEqual(self.store.read()['base_history'],history)
+
+    def test_stream_close_is_registered_and_foreign_origin_rejected(self):
+        from page_sessions import PageSessions
+        manager = PageSessions(lambda: None)
+        with patch.object(main,'page_sessions',manager):
+            response = self.client.get('/api/page-session',buffered=False)
+            self.assertEqual(response.mimetype,'text/event-stream')
+            self.assertEqual(len(manager._pages),1)
+            response.close()
+            self.assertEqual(len(manager._pages),0)
+            self.assertIsNotNone(manager._deadline)
+            self.assertEqual(self.client.get('/api/page-session',headers={'Origin':'https://other.example'}).status_code,403)
