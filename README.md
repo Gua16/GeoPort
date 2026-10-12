@@ -1,5 +1,17 @@
 # GeoPort: Your Location, Anywhere! 🌍 
 
+## Lite 源码运行与文档
+
+使用 Python 3.12。创建 `.venv` 后执行 `python -m pip install --require-hashes -r requirements.lock`。普通启动：`.venv/bin/python src/main.py --ui-mode lite --port 54322`。iOS 17+ 的 macOS 设备隧道需要管理员权限；请在本机 Terminal 执行 `sudo GEOPORT_CONFIG_DIR="$PWD/test-config" "$PWD/.venv/bin/python" src/main.py --ui-mode lite --port 54322`，密码仅在本地 sudo 提示输入。`test-config` 用于独立验证，正常使用可指定已有配置目录。
+
+macOS 0.1.3 安装包：双击 APP，在系统授权弹窗输入管理员密码；取消授权退出。授权后由普通用户打开浏览器，后台继续使用原用户配置目录。无需管理员脚本；脚本保留为备用入口。启动日志为 `~/Library/Logs/GeoPort/startup.log`。
+
+0.1.3 新增最近 5 条基准历史：仅成功保存时更新，去重、最新在前、重启保留。选择历史不会自动定位。退出按钮清理设备后关闭页面；最后一个页面关闭 120 秒后自动退出，期间重开取消。页面在线状态使用本地 SSE，后台标签不依赖 JavaScript 定时心跳。
+
+验证：`.venv/bin/python -m unittest discover -s tests`。`src/` 为程序，`tests/` 为回归测试，`docs/` 为测试说明，`packaging/` 为构建脚本。保持锁定设备 API 依赖，不修改系统安全设置。
+
+文档索引：[实机测试与管理员启动](docs/MACOS_TEST.md)、[当前修复状态与验证边界](STATUS.md)、[页面与服务退出需求](docs/LIFECYCLE_REQUIREMENTS.md)、[基准坐标历史需求](docs/BASE_HISTORY_REQUIREMENTS.md)、[APP 体积优化需求（暂不实施）](docs/PACKAGING_SIZE_REQUIREMENTS.md)。
+
 
 <p align="center">
   
@@ -81,6 +93,30 @@ An iOS device and a sense of adventure!
 You will need to install iTunes (we need their USB service so we can discover the iOS device!)
 
 ## Installation
+
+### Source development: offline lite mode
+
+This checkout includes a lightweight local interface with saved base coordinates
+and one-shot random offsets. It is based on the repository's **2.3.3 source**;
+it is not a rebuilt or verified replacement for the upstream 4.0.2 binary release.
+
+Use Python 3.12:
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements.lock
+.venv/bin/python src/main.py
+```
+
+On Windows use `py -3.12 -m venv .venv` and `.venv\Scripts\python.exe` instead.
+The server listens locally, opens the browser after its health check succeeds,
+and defaults to the offline lite interface. Use `--no-browser`, `--port 54321`,
+or `--ui-mode map` as needed. Device drivers, pairing, developer mode and any
+required administrator privileges remain necessary for actual device operations.
+
+[功能与配置说明](docs/LITE_MODE.md) · [变更与验证记录](docs/VALIDATION.md)
+
+### Upstream binary downloads
 
 - [Download](https://github.com/davesc63/GeoPort/releases/) the package for your operating system
 - Run the application
