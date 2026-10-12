@@ -2,6 +2,7 @@ name: Verify UI and compare native macOS packaging
 on:
   push:
     branches: ['codex/ui-compact-macos']
+    paths-ignore: ['docs/**', 'STATUS.md', 'design-qa.md', '.github/workflows/publish-macos-ui.yml']
   workflow_dispatch:
 permissions:
   contents: read

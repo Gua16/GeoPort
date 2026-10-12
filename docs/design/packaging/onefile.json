@@ -1,0 +1,35 @@
+{
+  "profile": "onefile",
+  "app_bytes": 35047177,
+  "dmg_bytes": 35092814,
+  "largest_files": [
+    [
+      31844960,
+      "Contents/MacOS/GeoPortLite"
+    ],
+    [
+      1592168,
+      "Contents/Resources/Assets.car"
+    ],
+    [
+      1511781,
+      "Contents/Resources/AppIconDark.icns"
+    ],
+    [
+      94433,
+      "Contents/Resources/AppIcon.icns"
+    ],
+    [
+      2910,
+      "Contents/_CodeSignature/CodeResources"
+    ],
+    [
+      925,
+      "Contents/Info.plist"
+    ]
+  ],
+  "startup_seconds": [
+    1.0,
+    36.68
+  ]
+}

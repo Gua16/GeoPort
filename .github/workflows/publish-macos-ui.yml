@@ -1,0 +1,47 @@
+name: Publish verified GeoPort 0.1.4 test package
+on:
+  push:
+    branches: ['codex/ui-compact-macos']
+    paths: ['.github/workflows/publish-macos-ui.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: Gua16/GeoPort
+      BUILD_RUN: '38274752673'
+      BUILD_COMMIT: '6e39034'
+      RELEASE_TAG: lite-macos-arm64-test-0.1.4
+    steps:
+      - name: Require the exact successful native build
+        run: |
+          gh api "repos/$GH_REPO/actions/runs/$BUILD_RUN" > run.json
+          python - <<'PY'
+          import json, os
+          run = json.load(open('run.json'))
+          assert run['conclusion'] == 'success', run['conclusion']
+          assert run['head_sha'].startswith(os.environ['BUILD_COMMIT']), run['head_sha']
+          assert run['head_branch'] == 'codex/ui-compact-macos'
+          PY
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: GeoPort-Lite-0.1.4-compact
+          run-id: 38274752673
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: verified
+      - name: Verify and publish the exact artifact
+        working-directory: verified/dist
+        run: |
+          sha256sum --check GeoPort-Lite-macOS-15-arm64-test.dmg.sha256
+          gh release view "$RELEASE_TAG" --json targetCommitish --jq .targetCommitish > target.txt
+          python - <<'PY'
+          import os
+          target = open('target.txt').read().strip()
+          assert target.startswith(os.environ['BUILD_COMMIT']), target
+          PY
+          gh release upload "$RELEASE_TAG" GeoPort-Lite-macOS-15-arm64-test.dmg GeoPort-Lite-macOS-15-arm64-test.dmg.sha256 package-metrics.json --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
