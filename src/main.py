@@ -9,6 +9,8 @@ import signal
 import socket
 import random
 import asyncio
+import inspect
+from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 import argparse
 import requests
 import threading
@@ -29,7 +31,7 @@ from pymobiledevice3.usbmux import list_devices
 from pymobiledevice3.cli.mounter import auto_mount
 from pymobiledevice3.lockdown import create_using_usbmux, create_using_tcp, get_mobdev2_lockdowns
 from pymobiledevice3.services.amfi import AmfiService
-from pymobiledevice3.exceptions import DeviceHasPasscodeSetError, NoDeviceConnectedError
+from pymobiledevice3.exceptions import AccessDeniedError, DeviceHasPasscodeSetError, NoDeviceConnectedError
 from pymobiledevice3.services.dvt.dvt_secure_socket_proxy import DvtSecureSocketProxyService
 from pymobiledevice3.services.dvt.instruments.location_simulation import LocationSimulation
 from pymobiledevice3.remote.remote_service_discovery import RemoteServiceDiscoveryService
@@ -188,21 +190,7 @@ def create_geoport_folder():
 
 # Define the function to be executed in the thread
 def run_tunnel(service_provider):
-
-    try:
-        asyncio.run(start_quic_tunnel(service_provider))
-
-        logger.info("run_tun completed")
-        sys.exit(0)
-
-    except Exception as e:
-        error_message = str(e)
-
-        # Handle the exception, such as logging it or returning an error response
-        with app.app_context():
-            return jsonify({'error': error_message})
-
-    #return
+    asyncio.run(start_quic_tunnel(service_provider))
 
 # Define a function to start the tunnel thread
 def start_tunnel_thread(service_provider):
@@ -210,57 +198,18 @@ def start_tunnel_thread(service_provider):
 
 
 async def start_quic_tunnel(service_provider: RemoteServiceDiscoveryService) -> None:
-
     logger.warning("Start USB QUIC tunnel")
-
-    global terminate_tunnel_thread
-    stop_remoted_if_required()
-    #install_driver_if_required()
-
-    # if sys.platform == 'win32':
-    #     logger.info("Windows System - Driver Check Required")
-    #     if version_check(ios_version):
-    #         logger.warning("Installing WeTest Driver - QUIC Tunnel")
-    #         cli_install_wetest_drivers()
-
-    service = await create_core_device_tunnel_service_using_rsd(service_provider, autopair=True)
-
-    async with service.start_quic_tunnel() as tunnel_result:
-        resume_remoted_if_required()
-
-        logger.info(f"QUIC Address: {tunnel_result.address}")
-        logger.info(f"QUIC Port: {tunnel_result.port}")
-        global rsd_port
-        global rsd_host
-        rsd_host = tunnel_result.address
-
-        rsd_port = str(tunnel_result.port)
-
-
-        while True:
-            if _tunnel_stop_requested():
-                return
-            # wait user input while the asyncio tasks execute
+    async with _managed_tunnel(
+            lambda: create_core_device_tunnel_service_using_rsd(service_provider, autopair=True),
+            'start_quic_tunnel') as (_, result):
+        _publish_tunnel(result)
+        while not _tunnel_stop_requested():
             await asyncio.sleep(.5)
 
 
 # Define the function to be executed in the thread
 def run_tcp_tunnel(service_provider):
-
-    try:
-        asyncio.run(start_tcp_tunnel(service_provider))
-
-        logger.info("run_tun completed")
-        sys.exit(0)
-
-    except Exception as e:
-        error_message = str(e)
-
-        # Handle the exception, such as logging it or returning an error response
-        with app.app_context():
-            return jsonify({'error': error_message})
-
-    #return
+    asyncio.run(start_tcp_tunnel(service_provider))
 
 # Define a function to start the tunnel thread
 def start_tcp_tunnel_thread(service_provider):
@@ -268,27 +217,13 @@ def start_tcp_tunnel_thread(service_provider):
 
 
 async def start_tcp_tunnel(service_provider: CoreDeviceTunnelProxy) -> None:
-
     logger.warning("Start USB TCP tunnel")
-
-    global terminate_tunnel_thread
-    stop_remoted_if_required()
-    #install_driver_if_required()
-
-    #service = await create_core_device_tunnel_service_using_rsd(service_provider, autopair=True)
-
-    lockdown = create_using_usbmux(udid, autopair=True)
-    #print("Lockdown for Windows: ", lockdown)
-    service = CoreDeviceTunnelProxy(lockdown)
-    #asyncio.run(tunnel_task(service, secrets=None, protocol=TunnelProtocol.TCP), debug=True)
-    async with service.start_tcp_tunnel() as tunnel_result:
+    # Reuse the caller's lockdown rather than opening an unowned second socket.
+    async with _managed_tunnel(lambda: CoreDeviceTunnelProxy(service_provider),
+                               'start_tcp_tunnel') as (_, tunnel_result):
         logger.info(f"TCP Address: {tunnel_result.address}")
         logger.info(f"TCP Port: {tunnel_result.port}")
-        global rsd_port
-        global rsd_host
-        rsd_host = tunnel_result.address
-
-        rsd_port = str(tunnel_result.port)
+        _publish_tunnel(tunnel_result)
 
         while True:
             if _tunnel_stop_requested():
@@ -652,14 +587,20 @@ def connect_device_legacy():
         return jsonify({"Error": "No matching connection type"})
 
 def check_rsd_data():
-    max_attempts = 30
-    attempts = 0
-    while attempts < max_attempts:
-        if rsd_host is not None and rsd_port is not None:
-            return True  # Data is available
-        time.sleep(1)
-        attempts += 1
-    return False  # Data is still None after all attempts
+    if not tunnel_threads:
+        return False
+    thread = tunnel_threads[-1]
+    try:
+        thread.geoport_ready.result(timeout=30)
+    except FutureTimeoutError:
+        # A worker can itself raise TimeoutError; preserve that real failure.
+        if thread.geoport_ready.done():
+            raise
+        thread.geoport_stop_event.set()
+        return False
+    if not thread.is_alive() or thread.geoport_failure is not None:
+        raise RuntimeError('Device tunnel closed during connection') from thread.geoport_failure
+    return True
 
 def connect_usb(data):
     try:
@@ -834,78 +775,26 @@ def connect_wifi(data):
 
 
 async def start_wifi_tcp_tunnel() -> None:
-
-    logger.warning(f"Start Wifi TCP Tunnel")
-
-    global terminate_tunnel_thread
-    stop_remoted_if_required()
-    #install_driver_if_required()
-
-    # if sys.platform == 'win32':
-    #     if is_driver_required:
-    #         logger.warning("Installing WeTest Driver")
-    #         cli_install_wetest_drivers()
-
-    #service = await create_core_device_tunnel_service_using_remotepairing(udid, wifi_address, wifi_port)
-    lockdown = create_using_usbmux(udid)
-    service = CoreDeviceTunnelProxy(lockdown)
-
-    async with service.start_tcp_tunnel() as tunnel_result:
-        resume_remoted_if_required()
-
-        logger.info(f'Identifier: {service.remote_identifier}')
-        logger.info(f'Interface: {tunnel_result.interface}')
-        logger.info(f'RSD Address: {tunnel_result.address}')
-        logger.info(f'RSD Port: {tunnel_result.port}')
-        global rsd_port
-        global rsd_host
-        rsd_host = tunnel_result.address
-
-        rsd_port = str(tunnel_result.port)
-
-
-        while True:
-            if _tunnel_stop_requested():
-                return
-            # wait user input while the asyncio tasks execute
+    logger.warning("Start Wifi TCP Tunnel")
+    # Keep ownership of this lockdown in the connection cleanup path.
+    global lockdown
+    lockdown = create_using_usbmux(udid, connection_type=connection_type)
+    async with _managed_tunnel(lambda: CoreDeviceTunnelProxy(lockdown),
+                               'start_tcp_tunnel') as (_, result):
+        _publish_tunnel(result)
+        while not _tunnel_stop_requested():
             await asyncio.sleep(.5)
+
 
 async def start_wifi_quic_tunnel() -> None:
-
-    logger.warning(f"Start Wifi QUIC Tunnel")
-
-    global terminate_tunnel_thread
-    stop_remoted_if_required()
-    #install_driver_if_required()
-
-    # if sys.platform == 'win32':
-    #     if is_driver_required:
-    #         logger.warning("Installing WeTest Driver")
-    #         cli_install_wetest_drivers()
-    #get_wifi_with_retry()
-    service = await create_core_device_tunnel_service_using_remotepairing(udid, wifi_address, wifi_port)
-    # lockdown = create_using_usbmux(udid)
-    # service = CoreDeviceTunnelProxy(lockdown)
-
-    async with service.start_quic_tunnel() as tunnel_result:
-        resume_remoted_if_required()
-
-        logger.info(f'Identifier: {service.remote_identifier}')
-        logger.info(f'Interface: {tunnel_result.interface}')
-        logger.info(f'RSD Address: {tunnel_result.address}')
-        logger.info(f'RSD Port: {tunnel_result.port}')
-        global rsd_port
-        global rsd_host
-        rsd_host = tunnel_result.address
-
-        rsd_port = str(tunnel_result.port)
-
-
-        while True:
-            if _tunnel_stop_requested():
-                return
-            # wait user input while the asyncio tasks execute
+    logger.warning("Start Wifi QUIC Tunnel")
+    async with _managed_tunnel(
+            lambda: create_core_device_tunnel_service_using_remotepairing(udid, wifi_address, wifi_port),
+            'start_quic_tunnel') as (_, result):
+        _publish_tunnel(result)
+        while not _tunnel_stop_requested():
             await asyncio.sleep(.5)
+
 
 # Define a function to start the tunnel thread
 def start_wifi_tunnel_thread():
@@ -913,16 +802,10 @@ def start_wifi_tunnel_thread():
 
 
 def run_wifi_tunnel():
-    try:
-        if version_check(ios_version):
-            asyncio.run(start_wifi_quic_tunnel())
-        #TODO: or win32 / 17.0-17.3 special tunnel
-
-        else:
-            asyncio.run(start_wifi_tcp_tunnel())
-        #await tun(devices)
-    except Exception as e:
-        logger.error(f"Error in run_wifi_tunnel: {e}")
+    if version_check(ios_version):
+        asyncio.run(start_wifi_quic_tunnel())
+    else:
+        asyncio.run(start_wifi_tcp_tunnel())
 
 
 @app.route('/mount_developer_image', methods=['POST'])
@@ -1049,10 +932,73 @@ def _stop_tunnels():
 def _start_tunnel(target, arguments=()):
     global terminate_tunnel_thread
     terminate_tunnel_thread = False
-    thread = threading.Thread(target=target, args=arguments, name='GeoPort-tunnel', daemon=True)
+    def worker():
+        try:
+            target(*arguments)
+        except Exception as exc:
+            logger.exception('Device tunnel worker failed')
+            thread.geoport_failure = exc
+            if not thread.geoport_ready.done():
+                if isinstance(exc, (AccessDeniedError, psutil.AccessDenied, PermissionError)):
+                    message = (f'{type(exc).__name__}: administrator privileges are required for '
+                               'the device tunnel; start GeoPort with sudo in your local terminal')
+                else:
+                    message = f'{type(exc).__name__}: {exc}'
+                failure = RuntimeError(message)
+                failure.__cause__ = exc
+                thread.geoport_ready.set_exception(failure)
+        finally:
+            if not thread.geoport_ready.done():
+                thread.geoport_ready.set_exception(RuntimeError('Device tunnel exited before becoming ready'))
+    thread = threading.Thread(target=worker, name='GeoPort-tunnel', daemon=True)
     thread.geoport_stop_event = threading.Event()
+    thread.geoport_ready = Future()
+    thread.geoport_failure = None
     tunnel_threads.append(thread)
     thread.start()
+    return thread
+
+
+@asynccontextmanager
+async def _managed_tunnel(create_service, method):
+    """Resume remoted after startup, including failures entering the tunnel."""
+    stop_remoted_if_required()
+    resumed = False
+    service = None
+    try:
+        created = create_service()
+        service = await created if inspect.isawaitable(created) else created
+        async with getattr(service, method)() as result:
+            resume_remoted_if_required()
+            resumed = True
+            yield service, result
+    finally:
+        failure = sys.exc_info()[1]
+        cleanup_error = None
+        try:
+            if not resumed:
+                resume_remoted_if_required()
+        except Exception as exc:
+            logger.exception('Could not resume remoted after tunnel startup')
+            cleanup_error = exc
+        try:
+            if service is not None:
+                await service.close()
+        except Exception as exc:
+            logger.exception('Could not close device tunnel service')
+            cleanup_error = cleanup_error or exc
+        # Cleanup must not replace the exception that caused startup to fail.
+        if cleanup_error is not None and failure is None:
+            raise cleanup_error
+
+
+def _publish_tunnel(result):
+    global rsd_host, rsd_port
+    thread = threading.current_thread()
+    if _tunnel_stop_requested():
+        raise RuntimeError('Device tunnel startup was cancelled')
+    rsd_host, rsd_port = result.address, str(result.port)
+    thread.geoport_ready.set_result((rsd_host, rsd_port))
 
 
 @app.route('/connect_device', methods=['POST'])
