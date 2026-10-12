@@ -31,7 +31,7 @@ from urllib3.exceptions import InsecureRequestWarning, ConnectionError
 from contextlib import asynccontextmanager
 
 from pymobiledevice3.usbmux import list_devices
-from pymobiledevice3.cli.mounter import auto_mount
+from pymobiledevice3.services.mobile_image_mounter import auto_mount
 from pymobiledevice3.lockdown import create_using_usbmux, create_using_tcp, get_mobdev2_lockdowns
 from pymobiledevice3.services.amfi import AmfiService
 from pymobiledevice3.exceptions import AccessDeniedError, DeviceHasPasscodeSetError, NoDeviceConnectedError
@@ -39,18 +39,18 @@ from pymobiledevice3.services.dvt.dvt_secure_socket_proxy import DvtSecureSocket
 from pymobiledevice3.services.dvt.instruments.location_simulation import LocationSimulation
 from pymobiledevice3.remote.remote_service_discovery import RemoteServiceDiscoveryService
 from pymobiledevice3.remote.utils import stop_remoted_if_required, resume_remoted_if_required, get_rsds
-from pymobiledevice3.remote.tunnel_service import create_core_device_tunnel_service_using_rsd, get_remote_pairing_tunnel_services, start_tunnel, create_core_device_tunnel_service_using_remotepairing, get_core_device_tunnel_services
+from pymobiledevice3.remote.tunnel_service import create_core_device_tunnel_service_using_rsd, get_remote_pairing_tunnel_services, create_core_device_tunnel_service_using_remotepairing
 #from pymobiledevice3.cli.remote import install_driver_if_required
 from pymobiledevice3.osu.os_utils import get_os_utils
 from pymobiledevice3.bonjour import DEFAULT_BONJOUR_TIMEOUT, browse_mobdev2
 from pymobiledevice3.pair_records import get_local_pairing_record, get_remote_pairing_record_filename, get_preferred_pair_record
 from pymobiledevice3.common import get_home_folder
-from pymobiledevice3.cli.remote import cli_install_wetest_drivers
+if sys.platform == 'win32':
+    from pymobiledevice3.cli.remote import cli_install_wetest_drivers
+else:
+    def cli_install_wetest_drivers():
+        raise RuntimeError('WeTest driver installation is only supported on Windows')
 
-from pymobiledevice3.cli.remote import tunnel_task
-from pymobiledevice3.lockdown import LockdownClient
-from pymobiledevice3.lockdown_service_provider import LockdownServiceProvider
-from pymobiledevice3.remote.common import TunnelProtocol
 
 #========= Arg Parser ========
 # Parse command-line arguments

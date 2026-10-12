@@ -1,0 +1,39 @@
+name: Verify UI and compare native macOS packaging
+on:
+  push:
+    branches: ['codex/ui-compact-macos']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [baseline, compact, onefile]
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      GEOPORT_BUNDLE_PROFILE: ${{ matrix.profile }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          architecture: arm64
+      - run: python -m pip install --require-hashes -r requirements.lock -r packaging/requirements-build.lock
+      - run: python -m unittest discover -s tests -v
+      - run: bash packaging/macos/build.sh
+      - run: python packaging/macos/measure_package.py
+      - name: Upload verified package and measurements
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: GeoPort-Lite-0.1.4-${{ matrix.profile }}
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+            dist/package-metrics.json
+            build/icons/IconInfo.plist
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

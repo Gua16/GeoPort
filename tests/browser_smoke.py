@@ -119,7 +119,7 @@ with tempfile.TemporaryDirectory() as directory, socket.socket() as sock:
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile layout overflow'
             page.screenshot(path=str(Path(directory)/'lite.png'),full_page=True)
             page.locator('#quit').click()
-            expect(page.locator('#notice')).to_have_text('GeoPort 已退出，可以关闭此页面。')
+            expect(page.locator('#notice')).to_have_text('服务已退出，请关闭此页面。')
             server.wait(timeout=5)
             assert server.returncode == 0
             browser.close()
