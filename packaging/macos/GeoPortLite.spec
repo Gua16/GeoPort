@@ -8,9 +8,7 @@ profile = os.environ.get('GEOPORT_BUNDLE_PROFILE', 'compact')
 datas = [(str(root / 'src' / 'templates'), 'templates'),
          (str(root / 'src' / 'static'), 'static'),
          (str(root / 'LICENSE'), '.'),
-         (str(root / 'docs' / 'MACOS_TEST.md'), '.'),
-         (str(root / 'build' / 'icons' / 'Assets.car'), '.'),
-         (str(root / 'build' / 'icons' / 'AppIconDark.icns'), 'icons')]
+         (str(root / 'docs' / 'MACOS_TEST.md'), '.')]
 binaries = []
 hiddenimports = ['asgiref.sync', 'pymobiledevice3.osu.posix_util']
 excludes = ['pytest', 'tkinter', 'matplotlib']
