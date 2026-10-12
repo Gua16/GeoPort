@@ -1,16 +1,18 @@
 # 当前状态
 
 ## 进行中
-- 2026-10-12 Codex：记录 APP 体积优化需求，暂不实施；核对并合并已验证的 0.1.3 到 main。负责 `README.md`、`STATUS.md`、`docs/PACKAGING_SIZE_REQUIREMENTS.md` 和 GitHub PR。
+- 无。
 
 ## 完成
+- 2026-10-12 Codex：完成用户授权的主分支合并。[PR #2](https://github.com/Gua16/GeoPort/pull/2) 已合并到 `main`，合并提交 `14d08d9ecfef73004d5298aea1f0bfbc870afb20`。GitHub 当前未配置本 PR 的检查；采用此前已完成的 55 项本地测试与 USB 实机验证。本次仅新增 [APP 体积优化需求](docs/PACKAGING_SIZE_REQUIREMENTS.md) 与文档更新；用户要求暂不实施，0.1.3 (4) 安装版未变。
+
 - 2026-10-12 Codex：完成 0.1.3 (4)，负责页面生命周期、基准历史、TCP 隧道描述符清理与对应测试。55 项测试通过，安装版连接、设置基准、5 次随机偏移、停止、断开和重连通过。Safari 退出按钮关闭服务与当前标签，保留其他标签；用户确认手机恢复实际位置。最后一个页面关闭后自动退出通过，最终清理日志没有错误，remoted 正常；用户确认自动退出后手机恢复实际位置。历史界面选择、最多 5 条、去重及重启保留通过。原配置已逐字节恢复。
 
 - 2026-10-12 Codex：已记录 [基准坐标历史需求](docs/BASE_HISTORY_REQUIREMENTS.md)，用户已确认历史记录规则。文档同步至 GitHub `fix/device-tunnel-errors` 分支与 PR #2，实现与验证见需求文档。
 - 2026-10-12 Codex：已记录用户提出的按钮关闭服务与页面需求，以及关闭最后一个页面后延时退出的候选方案。需求、浏览器约束和待确认项仅写在 [页面与服务退出需求](docs/LIFECYCLE_REQUIREMENTS.md)。文档同步至同一 GitHub 分支与 PR #2；实现与验证见需求文档。
 - 2026-10-12 Codex：完成安装版 0.1.2 (3) 本机 USB 实机测试，负责实机测试记录和本文件。连接、基准设置、5 次界面随机偏移、恢复基准、停止、重启保存、界面重连与未连接拒绝通过。用户确认 iPhone 蓝点移到广州、偏移后小幅移动、停止后恢复实际位置。原配置逐字节恢复并重新加载。
 - 2026-10-12 Codex：完成 APP 系统授权启动，负责 `src/macos_launcher.py`、`src/main.py`、启动回归测试、macOS 打包与文档。0.1.2 (3) 已替换 Applications 安装版，0.1.1 保留为 `work/GeoPort-Lite-0.1.1-backup.app`。代码提交 `8752f1cf1513ff39fad1f0ae2f7dbd529b69322e` 已更新到现有 PR #2。
-- 2026-10-12 Codex：完成 macOS USB 隧道源码修复，负责 `src/main.py`、`tests/test_tunnel.py`、`docs/MACOS_TEST.md`、`README.md`。基于测试包 commit `5d35a87e78f53e78bf92efe37c751f70330be18d`，GitHub 分支 `fix/device-tunnel-errors`，代码提交 `255198a165fe84319eb75413b43ac57a1c2b2c08`，已发布 [PR #2](https://github.com/Gua16/GeoPort/pull/2)，目标 `codex/geoport-lite-macos-arm64`，未合并。
+- 2026-10-12 Codex：完成 macOS USB 隧道源码修复，负责 `src/main.py`、`tests/test_tunnel.py`、`docs/MACOS_TEST.md`、`README.md`。基于测试包 commit `5d35a87e78f53e78bf92efe37c751f70330be18d`，GitHub 分支 `fix/device-tunnel-errors`，代码提交 `255198a165fe84319eb75413b43ac57a1c2b2c08`，已发布 [PR #2](https://github.com/Gua16/GeoPort/pull/2)，原目标为 `codex/geoport-lite-macos-arm64`；最终合并记录见本文件完成项。
 
 - 2026-10-12 Codex：用户授权后已构建、验证并安装 0.1.1 (2)，替换 `/Applications/GeoPort Lite.app`；原应用保留为本次聊天工作目录下 `work/GeoPort-Lite-0.1.0-backup.app`。负责 `packaging/macos/GeoPortLite.spec` 与安装验证文档。代码更新通过已连接 GitHub 发布，未修改登录凭据。
 
@@ -35,5 +37,5 @@
 
 ## 交付与接续
 - 2026-10-12 Codex：0.1.1、0.1.2 与 0.1.3 DMG、校验文件、备用管理员启动脚本、源码补丁和验证说明保存在当前聊天的 `outputs/`。原始日志及设备命令结果保存在 `work/`，不包含密码或配对密钥。0.1.2 DMG 中 SOURCE_COMMIT 为代码提交 `8752f1cf1513ff39fad1f0ae2f7dbd529b69322e`。
-- 下一步第一个动作：直接双击 `/Applications/GeoPort Lite.app`。需要授权时在 macOS 系统弹窗输入密码；系统可短暂复用已有授权，已运行后台会直接打开界面。管理员脚本仅为备用入口。GitHub PR 尚未合并；不把管理员测试配置当作用户正式配置。
+- 下一步第一个动作：直接双击 `/Applications/GeoPort Lite.app`。需要授权时在 macOS 系统弹窗输入密码；系统可短暂复用已有授权，已运行后台会直接打开界面。管理员脚本仅为备用入口。GitHub PR 合并记录见完成项；不把管理员测试配置当作用户正式配置。
 - 管理员密码由用户在 macOS 系统弹窗输入；备用 sudo 脚本在本机 Terminal 输入。不修改系统安全设置。2026-10-12 用户已授权本次替换应用和 GitHub 推送。`/stop_location` 返回文本；自动验证应读取随后 `/api/settings` 的状态，不把文本响应当成 JSON。
