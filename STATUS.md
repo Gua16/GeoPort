@@ -1,6 +1,8 @@
 # 当前状态
 
 ## 完成
+- 2026-10-12 Codex：已记录 [基准坐标历史需求](docs/BASE_HISTORY_REQUIREMENTS.md)，用户已确认历史记录规则。文档同步至 GitHub `fix/device-tunnel-errors` 分支与 PR #2，功能尚未实现。
+- 2026-10-12 Codex：已记录用户提出的按钮关闭服务与页面需求，以及关闭最后一个页面后延时退出的候选方案。需求、浏览器约束和待确认项仅写在 [页面与服务退出需求](docs/LIFECYCLE_REQUIREMENTS.md)。文档同步至同一 GitHub 分支与 PR #2；本次未改代码、未构建 APP。
 - 2026-10-12 Codex：完成安装版 0.1.2 (3) 本机 USB 实机测试，负责实机测试记录和本文件。连接、基准设置、5 次界面随机偏移、恢复基准、停止、重启保存、界面重连与未连接拒绝通过。用户确认 iPhone 蓝点移到广州、偏移后小幅移动、停止后恢复实际位置。原配置逐字节恢复并重新加载。
 - 2026-10-12 Codex：完成 APP 系统授权启动，负责 `src/macos_launcher.py`、`src/main.py`、启动回归测试、macOS 打包与文档。0.1.2 (3) 已替换 Applications 安装版，0.1.1 保留为 `work/GeoPort-Lite-0.1.1-backup.app`。代码提交 `8752f1cf1513ff39fad1f0ae2f7dbd529b69322e` 已更新到现有 PR #2。
 - 2026-10-12 Codex：完成 macOS USB 隧道源码修复，负责 `src/main.py`、`tests/test_tunnel.py`、`docs/MACOS_TEST.md`、`README.md`。基于测试包 commit `5d35a87e78f53e78bf92efe37c751f70330be18d`，GitHub 分支 `fix/device-tunnel-errors`，代码提交 `255198a165fe84319eb75413b43ac57a1c2b2c08`，已发布 [PR #2](https://github.com/Gua16/GeoPort/pull/2)，目标 `codex/geoport-lite-macos-arm64`，未合并。
