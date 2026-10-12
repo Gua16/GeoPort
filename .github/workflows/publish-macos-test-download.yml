@@ -1,0 +1,37 @@
+name: Publish verified macOS test download
+
+on:
+  push:
+    branches: ['codex/geoport-lite-download']
+    paths: ['.github/workflows/publish-macos-test-download.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download the existing verified native build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          repository: Gua16/GeoPort
+          run-id: 38196502743
+          name: GeoPort-Lite-macOS-15-arm64-test
+          github-token: ${{ github.token }}
+          path: artifacts
+      - name: Verify checksum and upload public test download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: Gua16/GeoPort
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum -c GeoPort-Lite-macOS-15-arm64-test.dmg.sha256
+          test "$(gh api repos/Gua16/GeoPort/releases/410091528 --jq .target_commitish)" = '5d35a87e78f53e78bf92efe37c751f70330be18d'
+          gh release upload lite-macos-arm64-test-0.1.0 GeoPort-Lite-macOS-15-arm64-test.dmg GeoPort-Lite-macOS-15-arm64-test.dmg.sha256 --clobber
+          gh release edit lite-macos-arm64-test-0.1.0 --draft=false --prerelease --latest=false
+          gh api repos/Gua16/GeoPort/releases/tags/lite-macos-arm64-test-0.1.0 --jq '.assets[] | .browser_download_url'
