@@ -14,6 +14,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 40
     env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       GEOPORT_BUNDLE_PROFILE: ${{ matrix.profile }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
