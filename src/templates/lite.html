@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GeoPort · 简洁模式</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='lite.css') }}">
+  <script src="{{ url_for('static', filename='lite.js') }}" defer></script>
+</head>
+<body>
+  <main>
+    <header><div><p class="eyebrow">YOUR LOCATION, ANYWHERE</p><h1>GeoPort</h1></div><span class="badge">简洁模式 · 本地界面</span></header>
+    <p class="intro">保存一个起点。每次偏移都从这里出发。</p>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <section aria-labelledby="device-title">
+      <h2 id="device-title">设备连接</h2>
+      <p id="device-status">尚未连接设备</p>
+      <label for="device">已发现的 iPhone</label>
+      <select id="device"><option value="">正在扫描…</option></select>
+      <div class="actions"><button id="refresh">刷新设备</button><button id="connect">连接</button><button id="disconnect" disabled>断开</button></div>
+      <div id="developer-help" hidden><p>设备需要开启开发者模式。操作可能要求你在 iPhone 上确认或重启；请按设备提示完成后重新连接。</p><button id="enable-developer">启用开发者模式</button></div>
+      <p class="hint">首次配对请使用 USB 并在 iPhone 上信任这台电脑。已经配对的设备可离线使用；设备准备和驱动仍可能需要额外步骤。</p>
+    </section>
+    <section aria-labelledby="base-title">
+      <h2 id="base-title">基准坐标</h2>
+      <form id="base-form">
+        <div class="grid"><label>纬度<input id="latitude" type="number" min="-90" max="90" step="any" required placeholder="-90 至 90"></label><label>经度<input id="longitude" type="number" min="-180" max="180" step="any" required placeholder="-180 至 180"></label></div>
+        <button type="submit" id="save-base">保存基准</button>
+      </form>
+      <p class="hint">只有保存才会更改基准。随机偏移和停止模拟都会保留它。</p>
+    </section>
+    <section aria-labelledby="random-title">
+      <h2 id="random-title">一次性随机偏移</h2>
+      <label for="radius">偏移半径（米）</label><input id="radius" type="number" min="0" max="100000" step="any" value="300" required>
+      <p class="hint">半径修改后自动保存。每次点击只更新一次，不会累计偏移或定时移动。</p>
+      <button id="random" class="primary" disabled>随机偏移</button>
+      <div class="actions"><button id="apply-base" disabled>设置基准坐标</button><button id="stop" disabled>停止模拟</button></div>
+    </section>
+    <section aria-labelledby="status-title">
+      <h2 id="status-title">定位状态 <span id="location-status" class="badge">未启动</span></h2>
+      <dl><dt>已保存的基准坐标</dt><dd id="base-display">尚未保存</dd><dt>最近一次设备确认的模拟坐标</dt><dd id="current-display">尚未应用</dd></dl>
+      <p class="hint">重启后不会自动向设备应用坐标。连接状态以最近一次操作为准，设备拔出后请刷新或重新连接。</p>
+    </section>
+    <footer><a href="/map">打开地图模式 ↗</a><details><summary>设置</summary><label for="startup-mode">下次启动界面</label><select id="startup-mode"><option value="lite">简洁模式（离线界面）</option><option value="map">地图模式（在线功能）</option></select><p class="hint">地图选点、搜索和路线功能保留，在线地图需要网络。切换界面不会应用或清除坐标。</p></details><button id="quit">退出 GeoPort</button></footer>
+  </main>
+</body>
+</html>

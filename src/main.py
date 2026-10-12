@@ -15,10 +15,14 @@ import threading
 import webbrowser
 import subprocess
 import pycountry
+from urllib.request import urlopen
 
-from flask import Flask, jsonify, render_template, request
+from location_math import coordinates, random_offset
+from location_service import LocationError, LocationService
+from settings import SettingsStore
+
+from flask import Flask, jsonify, render_template, request, redirect
 from urllib3.exceptions import InsecureRequestWarning, ConnectionError
-requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 from contextlib import asynccontextmanager
 
 from pymobiledevice3.usbmux import list_devices
@@ -50,7 +54,8 @@ parser.add_argument('--no-browser', action='store_true', help='Skip auto opening
 parser.add_argument('--port', type=int, help='Specify port number to listen on for web browser requests')
 parser.add_argument('--wifihost', type=str, help='Specify the wifi IP address to connect to')
 parser.add_argument('--udid', type=str, help='Specify the device udid to target')
-args = parser.parse_args()
+parser.add_argument('--ui-mode', choices=('lite', 'map'), help='Override the saved startup interface')
+args = parser.parse_args() if __name__ == '__main__' else parser.parse_args([])
 #========= Arg Parser ========
 
 if sys.platform == 'win32':
@@ -76,6 +81,7 @@ logging.getLogger('werkzeug').disabled = True
 #log.disabled = True
 
 app = Flask(__name__)
+settings_store = SettingsStore()
 
 # Define constants
 # Get the home directory of the current user
@@ -110,6 +116,10 @@ APP_VERSION_TYPE = "fuel"
 terminate_tunnel_thread = False
 terminate_location_thread = False
 location_threads = []
+tunnel_threads = []
+online_started = False
+online_lock = threading.Lock()
+online_metadata = {'version': None, 'broadcast': None, 'complete': False}
 timeout = DEFAULT_BONJOUR_TIMEOUT
 
 # Get the current platform using sys.platform
@@ -138,9 +148,11 @@ if current_platform == "darwin":
 def fetch_api_data(api_url):
     global api_data
     try:
-        api_data = requests.get(api_url, verify=False).json()
+        response = requests.get(api_url, timeout=5)
+        response.raise_for_status()
+        api_data = response.json()
         return api_data
-    except requests.exceptions.RequestException as e:
+    except (requests.exceptions.RequestException, ValueError) as e:
         logger.error(f"Error: {e}")
         logger.error(f"API is unreachable or there was an error during the request")
         logger.error("Sorry - Fuel data is not available")
@@ -194,11 +206,8 @@ def run_tunnel(service_provider):
 
 # Define a function to start the tunnel thread
 def start_tunnel_thread(service_provider):
-    global terminate_tunnel_thread  # Declare the global variable
-    terminate_tunnel_thread = False  # Set the value of the global variable
-    thread = threading.Thread(target=run_tunnel, args=(service_provider,))
-    thread.start()
-    return
+    _start_tunnel(run_tunnel, (service_provider,))
+
 
 async def start_quic_tunnel(service_provider: RemoteServiceDiscoveryService) -> None:
 
@@ -229,7 +238,7 @@ async def start_quic_tunnel(service_provider: RemoteServiceDiscoveryService) -> 
 
 
         while True:
-            if terminate_tunnel_thread is True:
+            if _tunnel_stop_requested():
                 return
             # wait user input while the asyncio tasks execute
             await asyncio.sleep(.5)
@@ -255,11 +264,8 @@ def run_tcp_tunnel(service_provider):
 
 # Define a function to start the tunnel thread
 def start_tcp_tunnel_thread(service_provider):
-    global terminate_tunnel_thread  # Declare the global variable
-    terminate_tunnel_thread = False  # Set the value of the global variable
-    thread = threading.Thread(target=run_tcp_tunnel, args=(service_provider,))
-    thread.start()
-    return
+    _start_tunnel(run_tcp_tunnel, (service_provider,))
+
 
 async def start_tcp_tunnel(service_provider: CoreDeviceTunnelProxy) -> None:
 
@@ -285,7 +291,7 @@ async def start_tcp_tunnel(service_provider: CoreDeviceTunnelProxy) -> None:
         rsd_port = str(tunnel_result.port)
 
         while True:
-            if terminate_tunnel_thread is True:
+            if _tunnel_stop_requested():
                 return
             # wait user input while the asyncio tasks execute
             await asyncio.sleep(.5)
@@ -344,29 +350,10 @@ def version_check(version_string):
         return False
 
 def get_user_country():
-    global user_locale
-    try:
-        # Attempt to get the user's country using locale and pycountry
-        user_locale, _ = locale.getlocale()
-
-        if user_locale is None:
-            logger.warning("User locale is None. Defaulting to IP geolocation service.")
-            return get_country_from_ip()
-
-        country_code = user_locale.split('_')[-1]
-        country = pycountry.countries.get(alpha_2=country_code)
-        country_name = country.name if country else None
-
-        # If country_name is None, try IP geolocation service as a fallback
-        if country_name is None:
-            logger.warning("Failed to retrieve country name using locale. Using IP geolocation service.")
-            return get_country_from_ip()
-        else:
-            return country_name
-
-    except Exception as e:
-        logger.error(f"Error getting user country: {e}")
-        return None
+    # Device discovery and local UI must never call an Internet service.
+    user_locale, _ = locale.getlocale()
+    country = pycountry.countries.get(alpha_2=user_locale.split('_')[-1]) if user_locale else None
+    return country.name if country else "Spain"
 
 
 def get_country_from_ip():
@@ -443,10 +430,8 @@ def get_wifi_with_retry(max_attempts=10):
     raise RuntimeError("No devices found after multiple attempts. Please see the FAQ.")
 @app.route('/stop_tunnel', methods=['POST'])
 def stop_tunnel_thread():
-    global terminate_tunnel_thread
-    logger.info("stop tunnel thread")
-    # Set the terminate flag to True to stop the thread
-    terminate_tunnel_thread = True
+    with location_service.connection_change():
+        _stop_tunnels()
     return jsonify("Tunnel stopped")
 
 @app.route('/api/data/<fuel_type>')
@@ -483,16 +468,12 @@ def get_fuel_types():
 
 @app.route('/update_location', methods=['POST'])
 def update_location():
-    # Use 'request' to get the JSON data from the client
-    data = request.get_json()
-
-    # Convert latitude and longitude to float values
-    lat = float(data['lat'])
-    lng = float(data['lng'])
-
     global location
-    location = f"{lat} {lng}"
+    data = json_body()
+    point = coordinates(data.get('lat'), data.get('lng'))
+    location = f"{point['lat']} {point['lng']}"
     return 'Location updated successfully'
+
 
 def check_pair_record(udid):
     global pair_record
@@ -567,7 +548,7 @@ def enable_developer_mode(udid, connection_type):
 
         AmfiService(lockdown).enable_developer_mode()
         logger.info("Enable complete, mount developer image...")
-        mount_developer_image()
+        mount_developer_image_impl()
 
     except DeviceHasPasscodeSetError:
         error_message = "Error: Device has a passcode set\n \n Please temporarily remove the passcode and run GeoPort again to enable Developer Mode \n \n Go to \"Settings - Face ID & Passcode\"\n"
@@ -585,32 +566,30 @@ def enable_developer_mode(udid, connection_type):
 
 @app.route('/enable_developer_mode', methods=['POST'])
 def enable_developer_mode_route():
-    try:
-        global udid
-        data = request.get_json()
-
-        # Extract the udid from the request
-        udid = data.get('udid', None)
-
-        success, error_message = enable_developer_mode(udid, connection_type)
-
-        if success:
-            # Return a success response with any additional data needed
-            return jsonify({'success': True, 'udid': udid})
-        else:
-            return jsonify({'error': error_message})
-
-    except Exception as e:
-        error_message = str(e)
-        return jsonify({'error': error_message})
-
+    global udid, connection_type
+    data = json_body()
+    if not isinstance(data.get('udid'), str) or not data['udid'].strip():
+        raise ValueError('A device identifier is required')
+    selected_type = data.get('connType', connection_type)
+    if selected_type not in ('USB', 'Network', 'Manual'):
+        raise ValueError('Unknown device connection type')
+    with location_service.connection_change():
+        _stop_tunnels()
+        udid, connection_type = data['udid'], selected_type
+        try:
+            success, reason = enable_developer_mode(udid, connection_type)
+            if not success:
+                raise RuntimeError(reason)
+        except Exception as exc:
+            raise LocationError(f'Could not enable developer mode: {exc}', 502) from exc
+    return jsonify({'success': True, 'udid': udid})
 
 
-@app.route('/connect_device', methods=['POST'])
-def connect_device():
+
+def connect_device_legacy():
     global udid, connection_type, ios_version, rsd_data, rsd_host, rsd_port, wifi_address
 
-    data = request.get_json()
+    data = json_body()
     logger.info(f"Connect Device Data: {data}")
 
     # Extract the udid from the request
@@ -745,7 +724,7 @@ def connect_usb(data):
 
             #time.sleep(3)
             if not check_rsd_data():
-                logger.error("RSD Data is None, Perhaps the tunnel isn't established")
+                raise RuntimeError("Device tunnel was not established within 30 seconds")
             else:
                 rsd_data = rsd_host, rsd_port
                 logger.info(f"RSD Data: {rsd_data}")
@@ -822,7 +801,7 @@ def connect_wifi(data):
             start_wifi_tunnel_thread()
 
             if not check_rsd_data():
-                logger.error("RSD Data is None, Perhaps the tunnel isn't established")
+                raise RuntimeError("Device tunnel was not established within 30 seconds")
             else:
                 rsd_data = rsd_host, rsd_port
                 logger.info(f"RSD Data: {rsd_data}")
@@ -886,7 +865,7 @@ async def start_wifi_tcp_tunnel() -> None:
 
 
         while True:
-            if terminate_tunnel_thread is True:
+            if _tunnel_stop_requested():
                 return
             # wait user input while the asyncio tasks execute
             await asyncio.sleep(.5)
@@ -923,20 +902,16 @@ async def start_wifi_quic_tunnel() -> None:
 
 
         while True:
-            if terminate_tunnel_thread is True:
+            if _tunnel_stop_requested():
                 return
             # wait user input while the asyncio tasks execute
             await asyncio.sleep(.5)
 
 # Define a function to start the tunnel thread
 def start_wifi_tunnel_thread():
-    global terminate_tunnel_thread
-    terminate_tunnel_thread = False  # Set the value of the global variable
-    thread = threading.Thread(target=run_wifi_tunnel)
-    thread.start()
-    return
+    _start_tunnel(run_wifi_tunnel)
 
-# Entry point for running the tunnel async function
+
 def run_wifi_tunnel():
     try:
         if version_check(ios_version):
@@ -952,187 +927,203 @@ def run_wifi_tunnel():
 
 @app.route('/mount_developer_image', methods=['POST'])
 def mount_developer_image():
-    try:
+    with location_service.operation():
+        if not location_service.state()['device_connection']:
+            raise LocationError('Connect a device before mounting its developer image')
+        try:
+            mount_developer_image_impl()
+        except Exception as exc:
+            raise LocationError(f'Could not mount developer image: {exc}', 502) from exc
+    return 'Developer image mounted successfully'
 
-        global lockdown
-        lockdown = create_using_usbmux(udid, autopair=True)
-        logger.info(f"mount lockdown: {lockdown}")
 
+def mount_developer_image_impl():
+    global lockdown
+    if lockdown is None:
+        lockdown = create_using_usbmux(udid, connection_type=connection_type, autopair=True)
+    auto_mount(lockdown)
+
+@asynccontextmanager
+async def device_location_session():
+    """Keep DVT open between user updates, and close it only on stop/disconnect."""
+    if not udid or ios_version is None:
+        raise RuntimeError("No connected device")
+    if is_major_version_17_or_greater(ios_version):
+        entry = rsd_data_map.get(udid, {}).get(connection_type, {})
+        host, port = entry.get('host'), entry.get('port')
+        if not host or not port:
+            raise RuntimeError("Device tunnel is not ready")
+        async with RemoteServiceDiscoveryService((host, int(port))) as remote:
+            with DvtSecureSocketProxyService(remote) as dvt:
+                yield LocationSimulation(dvt)
+    else:
+        if lockdown is None:
+            raise RuntimeError("Device lockdown connection is unavailable")
         auto_mount(lockdown)
-
-        return 'Developer image mounted successfully'
-    except Exception as e:
-        error_message = str(e)
-        return jsonify({'error': error_message})
-
-async def set_location_thread(latitude, longitude):
-    global terminate_location_thread
-
-    try:
-        global rsd_host, rsd_port, udid, ios_version, connection_type
-
-        if udid in rsd_data_map:
-            if connection_type in rsd_data_map[udid]:
-                rsd_data = rsd_data_map[udid][connection_type]
-                rsd_host = rsd_data['host']
-                rsd_port = rsd_data['port']
-
-                logger.info(f"RSD in udid mapping is: {rsd_data}")
-                logger.info("RSD already created. Reusing connection")
-                logger.info(f"RSD Data: {rsd_data}")
+        with DvtSecureSocketProxyService(lockdown=lockdown) as dvt:
+            simulation = LocationSimulation(dvt)
+            simulation.clear()
+            yield simulation
 
 
-                if ios_version is not None and is_major_version_17_or_greater(ios_version):
-                    async with RemoteServiceDiscoveryService((rsd_host, rsd_port)) as sp_rsd:
-                        with DvtSecureSocketProxyService(sp_rsd) as dvt:
-                            LocationSimulation(dvt).set(latitude, longitude)
-                            logger.warning("Location Set Successfully")
-                            #OSUTILS.wait_return()
-                            while not terminate_location_thread:
-                                time.sleep(0.5)
+location_service = LocationService(device_location_session)
 
 
-                elif ios_version is not None and not is_major_version_17_or_greater(ios_version):
-                    with DvtSecureSocketProxyService(lockdown=lockdown) as dvt:
-                        LocationSimulation(dvt).clear()
-                        LocationSimulation(dvt).set(latitude, longitude)
-                        logger.warning("Location Set Successfully")
-                        #await asyncio.wait_for(OSUTILS.wait_return(), timeout=1)  # Adjust timeout as needed
-                        while not terminate_location_thread:
-                            time.sleep(0.5)
-
-                await asyncio.sleep(1)  # Adjust sleep time according to your requirements
-
-    except asyncio.CancelledError:
-        # Handle cancellation gracefully
-        pass
-    except ConnectionResetError as cre:
-        if "[Errno 54] Connection reset by peer" in str(cre):
-            logger.error("The Set Location buffer is full. Try to 'Stop Location' to clear old connections")
-    except Exception as e:
-        logger.error(f"Error setting location: {e}")
+def json_body():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise ValueError('A JSON object is required')
+    return data
 
 
-# Function to start the set_location_thread in a separate thread
-def start_set_location_thread(latitude, longitude):
-    global terminate_location_thread
-    # Stop existing threads
-    stop_set_location_thread()
-
-    # Reset the terminate flag before starting the thread
-    terminate_location_thread = False
+@app.errorhandler(LocationError)
+def location_error(exc):
+    return jsonify({'error': str(exc), 'state': location_service.state()}), exc.status
 
 
-
-    # Define a helper function to run the async function in the thread
-    async def run_async_function():
-        await set_location_thread(latitude, longitude)
-
-    # Define a function to periodically check if the thread should terminate
-    def check_termination():
-        while not terminate_location_thread:
-            asyncio.run(asyncio.sleep(1))  # Adjust sleep time as needed
-        logger.info("Location Thread Terminated")
-
-    # Create a new thread and start it
-    location_thread = threading.Thread(target=lambda: asyncio.run(run_async_function()))
-    location_thread.start()
-
-    # Create a new thread for checking termination
-    termination_thread = threading.Thread(target=check_termination)
-    termination_thread.start()
+@app.errorhandler(ValueError)
+def invalid_input(exc):
+    return jsonify({'error': str(exc)}), 400
 
 
-# Function to stop the location thread
+@app.errorhandler(OSError)
+def io_error(exc):
+    return jsonify({'error': f'Local file or device operation failed: {exc}'}), 503
+
+
+@app.route('/api/settings', methods=['GET', 'PUT'])
+def settings_api():
+    if request.method == 'PUT':
+        data = json_body()
+        if set(data) - {'random_radius_m', 'ui_mode'}:
+            raise ValueError('Only random_radius_m and ui_mode can be changed here')
+        settings_store.update(**data)
+    return jsonify({**settings_store.read(), **location_service.state(),
+                    'settings_warning': settings_store.warning})
+
+
+@app.route('/api/base-location', methods=['PUT'])
+def save_base_location():
+    data = json_body()
+    point = coordinates(data.get('lat'), data.get('lng'))
+    return jsonify(settings_store.update(base_location=point))
+
+
+@app.route('/api/location/apply', methods=['POST'])
+def apply_location_api():
+    data = json_body()
+    mode = data.get('mode', 'base')
+    if mode not in ('base', 'random'):
+        raise ValueError('Location mode must be base or random')
+    saved = settings_store.read()
+    base = saved['base_location']
+    if base is None:
+        raise LocationError('Save a base coordinate first')
+    point = random_offset(base, saved['random_radius_m']) if mode == 'random' else base
+    location_service.apply(point)
+    return jsonify({'success': True, **location_service.state()})
+
+
+def _tunnel_stop_requested():
+    event = getattr(threading.current_thread(), 'geoport_stop_event', None)
+    return event.is_set() if event else terminate_tunnel_thread
+
+
+def _stop_tunnels():
+    global terminate_tunnel_thread, rsd_host, rsd_port, rsd_data, lockdown
+    terminate_tunnel_thread = True
+    for thread in tunnel_threads:
+        thread.geoport_stop_event.set()
+    for thread in tunnel_threads:
+        thread.join(timeout=10)
+        if thread.is_alive():
+            raise LocationError('Previous device tunnel is still closing; retry after it exits')
+    tunnel_threads.clear()
+    rsd_data_map.clear()
+    rsd_host = rsd_port = rsd_data = None
+    if lockdown is not None:
+        lockdown.close()
+        lockdown = None
+
+
+def _start_tunnel(target, arguments=()):
+    global terminate_tunnel_thread
+    terminate_tunnel_thread = False
+    thread = threading.Thread(target=target, args=arguments, name='GeoPort-tunnel', daemon=True)
+    thread.geoport_stop_event = threading.Event()
+    tunnel_threads.append(thread)
+    thread.start()
+
+
+@app.route('/connect_device', methods=['POST'])
+def connect_device():
+    data = json_body()
+    if not isinstance(data.get('udid'), str) or not data['udid'].strip():
+        raise ValueError('A device identifier is required')
+    if data.get('connType') not in ('USB', 'Network', 'Manual'):
+        raise ValueError('Unknown device connection type')
+    version = data.get('ios_version')
+    if not isinstance(version, str) or not re.fullmatch(r'\d+(?:\.\d+){0,2}', version):
+        raise ValueError('A valid iOS version is required')
+    with location_service.connection_change():
+        _stop_tunnels()
+        try:
+            response = connect_device_legacy()
+            payload = response.get_json()
+            if 'developer_mode_required' in payload:
+                return response, 409
+            if payload.get('error') or payload.get('Error'):
+                return response, 502
+            entry = rsd_data_map.get(data['udid'], {}).get(data['connType'], {})
+            if is_major_version_17_or_greater(version):
+                if not entry.get('host') or not entry.get('port'):
+                    raise RuntimeError('Device tunnel is unavailable')
+            elif lockdown is None:
+                raise RuntimeError('Device lockdown connection is unavailable')
+            location_service.connected({'udid': data['udid'], 'connType': data['connType'],
+                                        'ios_version': version})
+            return response
+        except Exception as exc:
+            _stop_tunnels()
+            raise LocationError(f'Device connection failed: {exc}', 502) from exc
+
+
+@app.route('/api/device/disconnect', methods=['POST'])
+def disconnect_device():
+    with location_service.connection_change():
+        _stop_tunnels()
+    return jsonify({'success': True, **location_service.state()})
+
+
 def stop_set_location_thread():
-    # Set the flag to indicate that the thread should stop
-    global terminate_location_thread
-    terminate_location_thread = True
-
-
+    # Compatibility for the original shutdown helper.
+    return location_service.stop()
 
 
 @app.route('/set_location', methods=['POST'])
 def set_location():
-    try:
-        global rsd_data, rsd_host, rsd_port
-        global location
-        global udid, connection_type
-        global ios_version
-
-        if ios_version is not None and is_major_version_17_or_greater(ios_version):
-            # Split the location string into latitude and longitude
-            latitude, longitude = location.split()
-
-            #asyncio.run(set_location_thread(latitude, longitude))
-            start_set_location_thread(latitude, longitude)
-
-            return 'Location set successfully'
-
-        elif ios_version is not None and not is_major_version_17_or_greater(ios_version):
-            global lockdown
-            # Split the location string into latitude and longitude
-            latitude, longitude = location.split()
-
-            mount_developer_image()
-            #asyncio.run(set_location_thread(latitude, longitude))
-            start_set_location_thread(latitude, longitude)
-
-
-            return 'Location set successfully'
-
-        else:
-            # Invalid ios_version
-            return jsonify({'error': 'No iOS version present'})
-
-    except Exception as e:
-        error_message = str(e)
-        return jsonify({'error': error_message})
+    data = json_body()
+    if 'lat' in data or 'lng' in data:
+        point = coordinates(data.get('lat'), data.get('lng'))
+    elif location:
+        point = coordinates(*location.split())
+    else:
+        raise ValueError("Select a coordinate first")
+    location_service.apply(point)
+    return 'Location set successfully'
 
 
 @app.route('/stop_location', methods=['POST'])
-async def stop_location():
-    try:
-        stop_set_location_thread()
-        global rsd_data
-        global rsd_host
-        global rsd_port
-        global lockdown
-        global ios_version, udid, connection_type
-        logger.info(f"stop set location data:  {rsd_data}")
-
-
-        if udid in rsd_data_map:
-            if connection_type in rsd_data_map[udid]:
-                rsd_data = rsd_data_map[udid][connection_type]
-
-                rsd_host = rsd_data['host']
-                rsd_port = rsd_data['port']
-
-            if ios_version is not None and is_major_version_17_or_greater(ios_version):
-                async with RemoteServiceDiscoveryService((rsd_host, rsd_port)) as sp_rsd:
-                    with DvtSecureSocketProxyService(sp_rsd) as dvt:
-                        LocationSimulation(dvt).clear()
-                        logger.warning("Location Cleared Successfully")
-                return 'Location cleared successfully'
-
-            elif ios_version is not None and not is_major_version_17_or_greater(ios_version):
-                with DvtSecureSocketProxyService(lockdown=lockdown) as dvt:
-
-                    LocationSimulation(dvt).clear()
-                    logger.warning("Location Cleared Successfully")
-                return 'Location cleared successfully'
-        return 'Location cleared successfully'
-    except Exception as e:
-        error_message = str(e)
-        return jsonify({'error': error_message})
+def stop_location():
+    location_service.stop()
+    return 'Location cleared successfully'
 
 
 def get_github_version():
     try:
         # Make a request to the GitHub API to get the content of CURRENT_VERSION file
         url = f'https://raw.githubusercontent.com/{GITHUB_REPO}/main/{CURRENT_VERSION_FILE}'
-        response = requests.get(url)
+        response = requests.get(url, timeout=5)
 
         response.raise_for_status()
 
@@ -1152,7 +1143,7 @@ def get_github_broadcast():
         url = f'https://raw.githubusercontent.com/{GITHUB_REPO}/main/{BROADCAST_FILE}'
         logger.error(f"Github URL: {url}")
 
-        response = requests.get(url, verify=False)
+        response = requests.get(url, timeout=5)
         logger.error(f"github response: {response}")
         #response.raise_for_status()
 
@@ -1318,7 +1309,7 @@ def clear_old_geoport():
 
 def shutdown_server():
     logger.warning("shutdown server")
-    asyncio.run(stop_location())
+    location_service.stop()
     stop_set_location_thread()
     stop_tunnel_thread()
     cancel_async_tasks()
@@ -1371,49 +1362,75 @@ def cancel_async_tasks():
 @app.route('/exit', methods=['POST'])
 def exit_app():
     logger.warning("Exit GeoPort")
-    shutdown_server()
-    # Send a response to the client immediately
-    response = {"success": True, "message": "Server is shutting down..."}
+    with location_service.connection_change():
+        _stop_tunnels()
+    # Acknowledge first, then exit only this app process.
+    def finish():
+        threading.Event().wait(0.25)
+        os._exit(0)
+    threading.Thread(target=finish, name='GeoPort-exit', daemon=True).start()
+    return jsonify({'success': True, 'message': 'GeoPort is shutting down'})
 
-    return jsonify(response)
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/')
 def index():
-    # global error_message
-    fetch_api_data(api_url)
-    # Get the GitHub version
-    github_version = get_github_version()
-    github_broadcast = get_github_broadcast()
-    user_locale = get_user_country()
-    logger.info(f"Country: {user_locale}")
-    logger.info(f"Current platform: {platform}")
-    logger.info(f"App Version = {APP_VERSION_NUMBER}")
-    logger.info(f"base dir =  {base_directory}")
-    logger.info(f"GitHub Version = {github_version}")
-
-    #list_devices()
-    # Compare with the locally hardcoded version
-    if github_version and github_version > APP_VERSION_NUMBER:
-        version_message = f"Update available. New Version is {github_version}"
-
-    elif github_version and github_version < APP_VERSION_NUMBER:
-        version_message = f"Beta Testing. App version is {APP_VERSION_NUMBER} - github is {github_version}"
-
-    else:
-        version_message = None
-
-    return render_template('map.html', version_message=version_message, github_broadcast=github_broadcast,
-                           user_locale=user_locale, app_version_num=APP_VERSION_NUMBER,
-                           app_version_type=APP_VERSION_TYPE, error_message=error_message, current_platform=platform,
-                           sudo_message=sudo_message)
+    mode = args.ui_mode or settings_store.read()['ui_mode']
+    return redirect('/map') if mode == 'map' else render_template('lite.html')
 
 
-def open_browser():
-    time.sleep(2)  # Wait for the Flask app to start
-    #webbrowser.open(f'http://localhost:{chosen_port}')
-    browser = webbrowser.get()
-    browser.open(f'http://localhost:{chosen_port}')
+@app.route('/lite')
+def lite():
+    return render_template('lite.html')
+
+
+@app.route('/map')
+def map_view():
+    start_online_data()
+    return render_template('map.html', version_message=None, github_broadcast=None,
+                           user_locale=get_user_country(), app_version_num=APP_VERSION_NUMBER,
+                           app_version_type=APP_VERSION_TYPE, error_message=error_message,
+                           current_platform=platform, sudo_message=sudo_message)
+
+
+def start_online_data():
+    global online_started
+    with online_lock:
+        if online_started:
+            return
+        online_started = True
+    def refresh():
+        try:
+            fetch_api_data(api_url)
+            online_metadata['version'] = get_github_version()
+            online_metadata['broadcast'] = get_github_broadcast()
+        finally:
+            online_metadata['complete'] = True
+    threading.Thread(target=refresh, daemon=True, name='GeoPort-online').start()
+
+
+@app.route('/api/online-status')
+def online_status():
+    start_online_data()
+    return jsonify({**online_metadata, 'fuel_ready': api_data is not None})
+
+
+def open_browser(port):
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        try:
+            with urlopen(f'http://127.0.0.1:{port}/health', timeout=0.3) as response:
+                if response.status == 200:
+                    webbrowser.open(f'http://127.0.0.1:{port}/')
+                    return
+        except (OSError, ValueError):
+            pass
+        threading.Event().wait(0.05)
+    logger.error('Local server did not become ready; browser was not opened')
 
 
 def is_port_in_use(port):
@@ -1441,7 +1458,7 @@ def try_bind_listener_on_free_port():
 
     if is_port_in_use(chosen_port):
         chosen_port = random.randint(min_port, max_port)
-    logger.info(f'Serving: http://localhost:{chosen_port}')
+    logger.info(f'Serving: http://127.0.0.1:{chosen_port}')
     return chosen_port
 
 
@@ -1459,6 +1476,7 @@ if __name__ == '__main__':
         if not pyuac.isUserAdmin():
             print("Relaunching as Admin")
             pyuac.runAsAdmin()
+            sys.exit(0)
     #else:
 
 
@@ -1468,7 +1486,8 @@ if __name__ == '__main__':
 
     # Check if --no-browser flag is provided
     if not args.no_browser:
-        open_browser()
+        threading.Thread(target=open_browser, args=(chosen_port,), daemon=True,
+                         name='GeoPort-browser').start()
     else:
         logger.info("--no-browser flag passed")
         logger.info("Running without auto-browser popup")
@@ -1477,7 +1496,7 @@ if __name__ == '__main__':
 
     #threading.Thread(target=open_browser).start()
 
-    app.run(debug=True, use_reloader=False, port=chosen_port, host='0.0.0.0')
+    app.run(debug=False, use_reloader=False, port=chosen_port, host='127.0.0.1')
 
 
 

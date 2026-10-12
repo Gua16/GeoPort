@@ -82,6 +82,30 @@ You will need to install iTunes (we need their USB service so we can discover th
 
 ## Installation
 
+### Source development: offline lite mode
+
+This checkout includes a lightweight local interface with saved base coordinates
+and one-shot random offsets. It is based on the repository's **2.3.3 source**;
+it is not a rebuilt or verified replacement for the upstream 4.0.2 binary release.
+
+Use Python 3.12:
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements.lock
+.venv/bin/python src/main.py
+```
+
+On Windows use `py -3.12 -m venv .venv` and `.venv\Scripts\python.exe` instead.
+The server listens locally, opens the browser after its health check succeeds,
+and defaults to the offline lite interface. Use `--no-browser`, `--port 54321`,
+or `--ui-mode map` as needed. Device drivers, pairing, developer mode and any
+required administrator privileges remain necessary for actual device operations.
+
+[功能与配置说明](docs/LITE_MODE.md) · [变更与验证记录](docs/VALIDATION.md)
+
+### Upstream binary downloads
+
 - [Download](https://github.com/davesc63/GeoPort/releases/) the package for your operating system
 - Run the application
 - Explore the world and **Simulate Location**

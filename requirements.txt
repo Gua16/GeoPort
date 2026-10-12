@@ -1,0 +1,9 @@
+# Python 3.12. Keep these legacy device API versions until their adapters are migrated.
+flask[async]==3.1.3
+psutil==7.2.2
+requests==2.34.2
+pycountry==26.2.16
+pyuac==0.0.3
+pywin32==312 ; sys_platform == 'win32'
+pymobiledevice3==4.4.0
+ipsw-parser==1.3.8

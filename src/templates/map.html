@@ -237,6 +237,8 @@ body.dark-mode .modal-footer button {
 </head>
 
 <body>
+<nav class="p-3"><a href="/lite">← 简洁离线模式</a></nav>
+<div id="online-notice" class="px-3" role="status"></div>
   {% if version_message %}
         <div class="alert alert-warning" role="alert">
             {{ version_message }}
@@ -2136,12 +2138,17 @@ function showModalWifiModeRequired() {
 
 
     /// Function to disconnect device
-    function disconnectDevice() {
+    async function disconnectDevice() {
         var connectTextElement = document.getElementById('connectText');
         var connectButton = document.getElementById('connect');
         var disconnectButton = document.getElementById('disconnect');
         var deviceDropdown = document.getElementById('device');
-        stopLocation();
+        try {
+            await mapRequest('/api/device/disconnect', 'POST', {});
+        } catch (error) {
+            displayToast(error.message);
+            return;
+        }
         // Use navigator.sendBeacon to make the POST request without waiting for a response
         const data = JSON.stringify({});
         //navigator.sendBeacon('/stop_tunnel', data);
@@ -2167,6 +2174,7 @@ function showModalWifiModeRequired() {
         var rsdDataElement = document.getElementById('rsdData');
         if (rsdDataElement) {
             rsdDataElement.style.display = 'none';
+            rsdDataElement.value = '';
         }
 
         // Reset connectTextElement
@@ -2232,60 +2240,54 @@ async function updateFuelText(selectedFuelType, selectedFuelRegion) {
     }
 }
 
+let mapLocationBusy = false;
+function mapCoordinate() {
+    const values = document.getElementById('coordinates').value.trim().split(/[,\s]+/);
+    if (values.length !== 2 || values.some(value => value === '' || !Number.isFinite(Number(value)))) {
+        throw new Error('Enter a latitude and longitude first');
+    }
+    return {lat: Number(values[0]), lng: Number(values[1])};
+}
+async function mapRequest(path, method, data) {
+    const response = await fetch(path, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    const text = await response.text();
+    let result;
+    try { result = JSON.parse(text); } catch (_) { result = {message: text}; }
+    if (!response.ok || result.error) throw new Error(result.error || `Operation failed (${response.status})`);
+    return result;
+}
+async function saveMapBase() {
+    try {
+        await mapRequest('/api/base-location', 'PUT', mapCoordinate());
+        displayToast('Base coordinate saved. Device location has not changed.');
+    } catch (error) { displayToast(error.message); }
+}
+async function mapLocationOperation(path, data, showSuccess = true) {
+    if (mapLocationBusy) return;
+    mapLocationBusy = true;
+    document.getElementById('set-location').disabled = true;
+    document.getElementById('stop-location').disabled = true;
+    try {
+        const result = await mapRequest(path, 'POST', data);
+        if (showSuccess) displayToast(result.message || 'Operation completed');
+    } catch (error) { displayToast(error.message); }
+    finally {
+        mapLocationBusy = false;
+        updateSetLocationButtonStatus();
+        updateStopLocationButtonStatus();
+    }
+}
 function setLocationArrows() {
-        fetch('/set_location', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({}),
-        })
-            .then(response => response.text())
-            .then(data => {
-                //displayToast(data); // Display response as a toast
-                console.log('set_location response:', data);
-            })
-            .catch(error => {
-                console.error('Error setting location:', error);
-            });
-    }
-
-
-    function setLocation() {
-        fetch('/set_location', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({}),
-        })
-            .then(response => response.text())
-            .then(data => {
-                displayToast(data); // Display response as a toast
-                console.log('set_location response:', data);
-            })
-            .catch(error => {
-                console.error('Error setting location:', error);
-            });
-    }
-
-    function stopLocation() {
-        fetch('/stop_location', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({}),
-        })
-            .then(response => response.text())
-            .then(data => {
-                displayToast(data); // Display response as a toast
-                console.log('stop_location response:', data);
-            })
-            .catch(error => {
-                console.error('Error stopping location:', error);
-            });
-    }
+    try { return mapLocationOperation('/set_location', mapCoordinate(), false); }
+    catch (error) { displayToast(error.message); }
+}
+function setLocation() {
+    try { return mapLocationOperation('/set_location', mapCoordinate()); }
+    catch (error) { displayToast(error.message); }
+}
+function stopLocation() {
+    return mapLocationOperation('/stop_location', {});
+}
 
     // Function to enable or disable the Set Location button based on conditions
     function updateSetLocationButtonStatus() {
@@ -2485,6 +2487,31 @@ function continueAfterDeveloperModeRequired() {
 
 
     document.addEventListener('DOMContentLoaded', function () {
+        async function refreshOnlineStatus() {
+            try {
+                const response = await fetch('/api/online-status');
+                const state = await response.json();
+                const messages = [];
+                if (state.version && state.version !== appVersionNum) messages.push(`Published version: ${state.version}; source version: ${appVersionNum}`);
+                if (state.broadcast) messages.push(state.broadcast);
+                document.getElementById('online-notice').textContent = messages.join(' · ');
+                if (!state.complete) setTimeout(refreshOnlineStatus, 500);
+                else if (state.fuel_ready) handleFuelTypeChange();
+            } catch (error) { console.error('Optional online services unavailable', error); }
+        }
+        refreshOnlineStatus();
+        fetch('/api/settings').then(response => response.json()).then(state => {
+            if (state.base_location) setCoordinates(state.base_location.lat, state.base_location.lng);
+            if (state.device_connection) {
+                document.getElementById('connectText').innerText = 'Connected';
+                document.getElementById('connect').disabled = true;
+                document.getElementById('device').disabled = true;
+                document.getElementById('rsdData').value = state.device_connection.udid;
+                document.getElementById('disconnect').style.display = 'inline-block';
+                updateSetLocationButtonStatus();
+                updateStopLocationButtonStatus();
+            }
+        }).catch(error => console.error('Unable to restore local state', error));
     console.log("test");
     initializeMap();
     searchLocation();
@@ -2528,6 +2555,7 @@ function continueAfterDeveloperModeRequired() {
         </div>
         <div class="col">
             <input type="text" class="form-control" id="coordinates">
+<button type="button" class="btn btn-outline-primary mt-2" onclick="saveMapBase()">保存为基准坐标</button>
         </div>
         <div class="col-md-auto">
             <button type="button" class="btn btn-primary" id="search" onclick="handleSearch()">Search</button>
