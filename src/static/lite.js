@@ -8,7 +8,10 @@ const pointText = point => point ? `${point.lat.toFixed(6)}, ${point.lng.toFixed
 
 function notice(message, error = false) {
   $("notice").textContent = message;
+  $("notice").dataset.context = $("preferences-panel").hidden ? "workspace" : "preferences";
+  $("operation-status").hidden = Boolean(message);
   $("notice").classList.toggle("error", error);
+  $("notice").classList.toggle("processing", message === "处理中…");
 }
 async function api(path, method = "GET", data) {
   const response = await fetch(path, {method, headers: data === undefined ? {} : {"Content-Type": "application/json"}, body: data === undefined ? undefined : JSON.stringify(data)});
@@ -26,10 +29,13 @@ async function api(path, method = "GET", data) {
 function controls() {
   const connected = Boolean(saved?.device_connection);
   const locked = busy || saved?.location_status === "processing";
-  document.querySelectorAll("button,input,select").forEach(element => { element.disabled = locked; });
+  document.querySelectorAll("button,input,select").forEach(element => { element.disabled = element.hasAttribute("data-ui-only") ? false : locked; });
+  $("workspace-panel").setAttribute("aria-busy", locked ? "true" : "false");
   $("refresh").disabled = locked || scanning;
   $("connect").disabled = locked || scanning || !$("device").value || connected;
   $("disconnect").disabled = locked || !connected;
+  $("disconnect").hidden = !connected;
+  $("connect").hidden = connected;
   $("device").disabled = locked || scanning || connected;
   $("random").disabled = $("apply-base").disabled = locked || !connected || !saved?.base_location;
   $("stop").disabled = locked || !connected;
@@ -40,6 +46,18 @@ function render() {
   $("current-display").textContent = saved.current_location ? pointText(saved.current_location) : "尚未应用 / 已停止";
   $("location-status").textContent = states[saved.location_status] || saved.location_status;
   $("device-status").textContent = saved.device_connection ? `已连接 · ${saved.device_connection.connType} · iOS ${saved.device_connection.ios_version}` : "尚未连接设备";
+  const connected = Boolean(saved.device_connection);
+  $("device-summary").textContent = connected ? "已连接" : "未连接";
+  $("device-badge").textContent = connected ? "已连接" : "未连接";
+  $("device-badge").classList.toggle("connected", connected);
+  $("radius-summary").textContent = saved.random_radius_m;
+  const operation = $("operation-status");
+  operation.classList.toggle("success", saved.location_status === "simulating");
+  operation.classList.toggle("failed", saved.location_status === "failed");
+  operation.textContent = saved.location_status === "simulating" ? "最近一次定位已成功应用" :
+    saved.location_status === "processing" ? "正在等待设备确认，请稍候…" :
+    saved.location_status === "failed" ? (saved.error || "定位失败，请检查设备连接。") :
+    connected && saved.base_location ? "设备已就绪，点击按钮应用定位。" : "连接设备并保存基准后，即可应用定位。";
   const history = saved.base_history || [];
   const signature = JSON.stringify(history);
   if ($("base-history").dataset.entries !== signature) {
@@ -70,6 +88,7 @@ async function run(work, success) {
   try {
     await work();
     if (success) notice(success);
+    if (success?.startsWith("基准坐标已保存")) $("draft-indicator").textContent = "";
   } catch (error) {
     notice(error.message, true);
     if (error.payload?.developer_mode_required) $("developer-help").hidden = false;
@@ -149,3 +168,38 @@ $("quit").addEventListener("click", async () => {
     controls();
   }
 });
+
+function activateTab(selected, focus = false) {
+  if ($("notice").dataset.context !== selected) {
+    $("notice").textContent = "";
+    $("operation-status").hidden = false;
+  }
+  for (const name of ["workspace", "preferences"]) {
+    const active = name === selected;
+    const tab = $(name + "-tab");
+    tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+    tab.classList.toggle("selected", active);
+    $(name + "-panel").hidden = !active;
+  }
+  if (selected === "preferences") $("preferences-panel").insertBefore($("notice"), $("preferences-panel").children[1]);
+  else $("operation-status").before($("notice"));
+  if (focus) $(selected + "-tab").focus();
+}
+for (const name of ["workspace", "preferences"]) {
+  const tab = $(name + "-tab");
+  tab.addEventListener("click", () => activateTab(name));
+  tab.addEventListener("keydown", event => {
+    if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const next = event.key === "Home" ? "workspace" : event.key === "End" ? "preferences" : name === "workspace" ? "preferences" : "workspace";
+      activateTab(next, true);
+    }
+  });
+}
+for (const name of ["latitude", "longitude"]) {
+  $(name).addEventListener("input", () => {
+    const changed = !saved?.base_location || Number($("latitude").value) !== saved.base_location.lat || Number($("longitude").value) !== saved.base_location.lng;
+    $("draft-indicator").textContent = changed ? "尚未保存" : "";
+  });
+}

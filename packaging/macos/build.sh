@@ -5,8 +5,11 @@ if [ "$(uname -s)" != Darwin ] || [ "$(uname -m)" != arm64 ]; then
   echo 'This build requires a native Apple Silicon macOS machine.' >&2
   exit 1
 fi
+python packaging/macos/prepare_icons.py
 python -m PyInstaller --noconfirm --clean packaging/macos/GeoPortLite.spec
 app='dist/GeoPort Lite.app'
+cp build/icons/Assets.car "$app/Contents/Resources/Assets.car"
+cp build/icons/AppIconDark.icns "$app/Contents/Resources/AppIconDark.icns"
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
 file "$app/Contents/MacOS/GeoPortLite"

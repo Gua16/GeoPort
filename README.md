@@ -10,7 +10,7 @@ macOS 0.1.3 安装包：双击 APP，在系统授权弹窗输入管理员密码�
 
 验证：`.venv/bin/python -m unittest discover -s tests`。`src/` 为程序，`tests/` 为回归测试，`docs/` 为测试说明，`packaging/` 为构建脚本。保持锁定设备 API 依赖，不修改系统安全设置。
 
-文档索引：[实机测试与管理员启动](docs/MACOS_TEST.md)、[当前修复状态与验证边界](STATUS.md)、[页面与服务退出需求](docs/LIFECYCLE_REQUIREMENTS.md)、[基准坐标历史需求](docs/BASE_HISTORY_REQUIREMENTS.md)、[APP 体积优化需求（暂不实施）](docs/PACKAGING_SIZE_REQUIREMENTS.md)。
+文档索引：[实机测试与管理员启动](docs/MACOS_TEST.md)、[当前修复状态与验证边界](STATUS.md)、[0.1.4 本机页面退出验证](docs/LIFECYCLE_VALIDATION_0.1.4.md)、[页面与服务退出需求](docs/LIFECYCLE_REQUIREMENTS.md)、[基准坐标历史需求](docs/BASE_HISTORY_REQUIREMENTS.md)、[APP 体积优化需求（暂不实施）](docs/PACKAGING_SIZE_REQUIREMENTS.md)。
 
 
 <p align="center">

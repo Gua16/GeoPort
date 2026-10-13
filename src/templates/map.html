@@ -2,6 +2,8 @@
 <html xmlns="http://www.w3.org/1999/html">
 
 <head>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/app-light.png') }}" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/app-dark.png') }}" media="(prefers-color-scheme: dark)">
     <title>GeoPort</title>
 
     <script src="https://cdn.jsdelivr.net/npm/babel-polyfill@latest/dist/polyfill.min.js"></script>
@@ -235,10 +237,11 @@ body.dark-mode .modal-footer button {
 
     </style>
 <script src="{{ url_for('static', filename='lifecycle.js') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='map-theme.css') }}">
 </head>
 
 <body>
-<nav class="p-3"><a href="/lite">← 简洁离线模式</a></nav>
+<nav class="geoport-map-nav"><a href="/lite">GeoPort</a><span>地图模式</span><a href="/lite" class="back-link">返回定位工作台</a></nav>
 <div id="online-notice" class="px-3" role="status"></div>
   {% if version_message %}
         <div class="alert alert-warning" role="alert">

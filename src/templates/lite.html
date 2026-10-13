@@ -1,51 +1,75 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/app-light.png') }}" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/app-dark.png') }}" media="(prefers-color-scheme: dark)">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GeoPort · 简洁模式</title>
+  <meta name="color-scheme" content="light dark">
+  <title>GeoPort · 设备与定位</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='lite.css') }}">
   <script src="{{ url_for('static', filename='lite.js') }}" defer></script>
   <script src="{{ url_for('static', filename='lifecycle.js') }}" defer></script>
 </head>
 <body>
-  <main>
-    <header><div><p class="eyebrow">YOUR LOCATION, ANYWHERE</p><h1>GeoPort</h1></div><span class="badge">简洁模式 · 本地界面</span></header>
-    <p class="intro">保存一个起点。每次偏移都从这里出发。</p>
-    <div id="notice" role="status" aria-live="polite"></div>
-    <section aria-labelledby="device-title">
-      <h2 id="device-title">设备连接</h2>
-      <p id="device-status">尚未连接设备</p>
-      <label for="device">已发现的 iPhone</label>
-      <select id="device"><option value="">正在扫描…</option></select>
-      <div class="actions"><button id="refresh">刷新设备</button><button id="connect">连接</button><button id="disconnect" disabled>断开</button></div>
-      <div id="developer-help" hidden><p>设备需要开启开发者模式。操作可能要求你在 iPhone 上确认或重启；请按设备提示完成后重新连接。</p><button id="enable-developer">启用开发者模式</button></div>
-      <p class="hint">首次配对请使用 USB 并在 iPhone 上信任这台电脑。已经配对的设备可离线使用；设备准备和驱动仍可能需要额外步骤。</p>
+  <header class="app-header shell">
+    <div><p class="eyebrow">GEOPORT / LOCATION</p><h1>GeoPort</h1></div>
+    <span class="mode-label">离线简洁模式</span>
+  </header>
+  <nav class="app-navigation" aria-label="工作台导航">
+    <div class="shell navigation-inner">
+      <div role="tablist" aria-label="工作台页面">
+        <button id="workspace-tab" class="tab selected" role="tab" aria-selected="true" aria-controls="workspace-panel" data-ui-only>设备与定位</button>
+        <button id="preferences-tab" class="tab" role="tab" aria-selected="false" aria-controls="preferences-panel" tabindex="-1" data-ui-only>设置</button>
+      </div>
+      <a class="map-link" href="/map">地图模式<img src="{{ url_for('static', filename='icons/arrow-up-right.svg') }}" alt="" width="16" height="16"></a>
+    </div>
+  </nav>
+  <main class="shell">
+    <div id="workspace-panel" role="tabpanel" aria-labelledby="workspace-tab">
+      <div class="section-heading"><h2>定位概览</h2><p>基准固定，偏移独立。所有定位操作都由你主动执行。</p></div>
+      <div class="overview" aria-label="运行概览">
+        <div class="metric"><span>设备状态</span><strong id="device-summary">未连接</strong></div>
+        <div class="metric"><span>定位状态</span><strong id="location-status">未启动</strong></div>
+        <div class="metric"><span>偏移半径</span><strong class="numeric"><span id="radius-summary">300</span> <span class="metric-unit">m</span></strong></div>
+      </div>
+      <div class="workspace-grid">
+        <div class="left-column">
+          <section class="card device-card" aria-labelledby="device-title">
+            <div class="card-header"><div class="device-heading"><span class="device-icon"><img src="{{ url_for('static', filename='icons/device-mobile.svg') }}" alt="" width="24" height="24"></span><h3 id="device-title">设备连接</h3></div><span id="device-badge" class="badge">未连接</span></div>
+            <div class="device-controls"><label class="visually-hidden" for="device">已发现的 iPhone</label><select id="device"><option value="">正在扫描…</option></select><button id="refresh">刷新设备</button><button id="connect" class="primary">连接设备</button><button id="disconnect" disabled hidden>断开连接</button></div>
+            <p id="device-status" class="hint connection-detail">尚未连接设备</p>
+            <details class="device-help"><summary>连接与配对说明</summary><p class="hint">已配对设备可离线使用。首次连接请解锁 iPhone，使用 USB 并信任这台电脑。部分设备准备和驱动仍需要额外步骤。</p></details>
+            <div id="developer-help" class="inline-help" hidden><p>请在 iPhone 上开启开发者模式，按设备提示确认或重启后重新连接。</p><button id="enable-developer">启用开发者模式</button></div>
+          </section>
+          <section class="card base-card" aria-labelledby="base-title">
+            <h3 id="base-title">基准坐标</h3><p class="card-description">偏移始终围绕已保存的基准，不会累积。</p>
+            <form id="base-form">
+              <div class="coordinate-fields"><div class="input-group"><label for="latitude">纬度</label><input id="latitude" type="number" min="-90" max="90" step="any" required placeholder="−90 至 90" aria-describedby="base-help"></div><div class="input-group"><label for="longitude">经度</label><input id="longitude" type="number" min="-180" max="180" step="any" required placeholder="−180 至 180" aria-describedby="base-help"></div></div>
+              <div class="form-actions"><span id="draft-indicator" class="hint" aria-live="polite"></span><button type="submit" id="save-base" class="primary">保存基准</button></div>
+            </form>
+            <div class="history-section"><label for="base-history">最近保存</label><select id="base-history"><option value="">尚无历史记录</option></select><p id="base-help" class="hint">最多保留 5 条。选择历史只填入坐标，保存后生效。</p></div>
+          </section>
+        </div>
+        <section class="card location-card" aria-labelledby="random-title">
+          <h3 id="random-title">一次性随机偏移</h3><p class="card-description">每次点击，应用一个新的模拟坐标。</p>
+          <label for="radius">偏移半径</label><div class="radius-field"><input id="radius" type="number" min="0" max="100000" step="any" value="300" required aria-describedby="radius-help"><span aria-hidden="true">米</span></div>
+          <p id="radius-help" class="visually-hidden">0 至 100,000 米，修改后自动保存。</p>
+          <button id="random" class="primary main-action" disabled>随机偏移</button>
+          <div class="secondary-actions"><button id="apply-base" disabled>恢复基准</button><button id="stop" disabled>停止模拟</button></div>
+          <dl class="coordinate-readout"><div><dt>已保存的基准</dt><dd id="base-display">尚未保存</dd></div><div><dt>当前模拟坐标</dt><dd id="current-display">尚未应用</dd></div></dl>
+          <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
+          <p id="operation-status" class="operation-status">连接设备并保存基准后，即可应用定位。</p>
+          <details class="usage-help"><summary>使用说明</summary><p class="hint">随机偏移和停止模拟不会删除基准。每次偏移独立计算，不会定时移动。重启后不会自动应用坐标。</p><p class="hint">状态表示最近一次确认的操作；拔出设备后请刷新或重新连接。</p></details>
+        </section>
+      </div>
+    </div>
+    <section id="preferences-panel" class="preferences-panel" role="tabpanel" aria-labelledby="preferences-tab" hidden>
+      <div class="section-heading"><h2>设置</h2><p>保留你的工作习惯，配置只保存在本机。</p></div>
+      <div class="card preference-card"><h3>启动界面</h3><label for="startup-mode">下次打开 GeoPort 时显示</label><select id="startup-mode"><option value="lite">简洁模式 · 离线界面</option><option value="map">地图模式 · 在线功能</option></select><p class="hint">切换界面不会改变或清除设备的定位。地图选点、搜索和路线功能需要相应网络服务。</p></div>
+      <div class="card preference-card"><h3>配置与退出</h3><p class="card-description">基准、半径和最近 5 条记录会自动恢复。</p><p class="hint">关闭最后一个 GeoPort 页面后，服务将在 120 秒后停止模拟并退出。期间重新打开页面会取消退出。</p><p class="hint">“退出 GeoPort”会立即停止模拟并释放设备连接，再尝试关闭当前页面。</p></div>
     </section>
-    <section aria-labelledby="base-title">
-      <h2 id="base-title">基准坐标</h2>
-      <form id="base-form">
-        <div class="grid"><label>纬度<input id="latitude" type="number" min="-90" max="90" step="any" required placeholder="-90 至 90"></label><label>经度<input id="longitude" type="number" min="-180" max="180" step="any" required placeholder="-180 至 180"></label></div>
-        <button type="submit" id="save-base">保存基准</button>
-      </form>
-      <label for="base-history">最近保存的基准（最多 5 条）</label>
-      <select id="base-history"><option value="">尚无历史记录</option></select>
-      <p class="hint">选择历史只填入坐标，点击“保存基准”后生效，不会自动定位。</p>
-      <p class="hint">只有保存才会更改基准。随机偏移和停止模拟都会保留它。</p>
-    </section>
-    <section aria-labelledby="random-title">
-      <h2 id="random-title">一次性随机偏移</h2>
-      <label for="radius">偏移半径（米）</label><input id="radius" type="number" min="0" max="100000" step="any" value="300" required>
-      <p class="hint">半径修改后自动保存。每次点击只更新一次，不会累计偏移或定时移动。</p>
-      <button id="random" class="primary" disabled>随机偏移</button>
-      <div class="actions"><button id="apply-base" disabled>设置基准坐标</button><button id="stop" disabled>停止模拟</button></div>
-    </section>
-    <section aria-labelledby="status-title">
-      <h2 id="status-title">定位状态 <span id="location-status" class="badge">未启动</span></h2>
-      <dl><dt>已保存的基准坐标</dt><dd id="base-display">尚未保存</dd><dt>最近一次设备确认的模拟坐标</dt><dd id="current-display">尚未应用</dd></dl>
-      <p class="hint">重启后不会自动向设备应用坐标。连接状态以最近一次操作为准，设备拔出后请刷新或重新连接。</p>
-    </section>
-    <footer><a href="/map">打开地图模式 ↗</a><details><summary>设置</summary><label for="startup-mode">下次启动界面</label><select id="startup-mode"><option value="lite">简洁模式（离线界面）</option><option value="map">地图模式（在线功能）</option></select><p class="hint">地图选点、搜索和路线功能保留，在线地图需要网络。切换界面不会应用或清除坐标。</p></details><button id="quit">退出 GeoPort</button></footer>
   </main>
+  <footer class="app-footer"><div class="shell footer-inner"><p>配置保存在本机 <span aria-hidden="true">·</span> 重启不会自动定位</p><button id="quit">退出 GeoPort</button></div></footer>
 </body>
 </html>
