@@ -4,9 +4,11 @@
 - 0.1.4 新界面与精简包等待用户 Mac / iPhone 实机回归。
 
 ## 完成
+- 2026-10-13 Codex：按用户授权完成 [PR #3](https://github.com/Gua16/GeoPort/pull/3) 合并到 `main`，合并提交 `189e3c1809cd1790a0d35006f04605fb3a1574e4`。最新 HEAD 的 GitHub 状态检查与 PR 工作流列表为空；合并基于已记录的原生构建、55 项回归及本机页面生命周期验证。保留 iPhone 定位与原生图标尚未回归的边界。本次只合并与更新文档，未重建或替换安装版。
+
 - 2026-10-13 Codex：完成 PR #3 本机安装版 0.1.4 (5) 的两项页面生命周期验证。Safari 点击退出后当前标签自动关闭，其他标签保留，服务停止；关闭最后页面后第 123.171 秒检测到服务退出。120 秒阈值回归通过，55 项测试通过。日志无错误，remoted 正常，未发现需要修复的问题，未更换应用。完整范围见 [0.1.4 本机生命周期验证](docs/LIFECYCLE_VALIDATION_0.1.4.md)。iPhone 定位和图标回归仍未纳入本轮。
 
-- 2026-10-13（北京时间）Codex：完成用户确认的 UI、亮暗主题、自适应应用图标与精简 macOS 0.1.4 (5) 包。最终原生构建 `6e39034`，55 项回归与冻结程序启动/资源/配置重启/退出、签名、DMG 校验通过；桌面/窄屏亮暗浏览器交互验证通过。APP 69.76 MB、DMG 40.63 MB；安装包比宽泛收集对照减少约 56%。源码见 [PR #3](https://github.com/Gua16/GeoPort/pull/3)，未合并，未更换用户本机安装。此版本未做新一轮 iPhone 实机测试，明天重点回归授权、USB 定位与原生图标。完整记录见 [设计 QA](design-qa.md) 与 [体积结果](docs/PACKAGING_SIZE_REQUIREMENTS.md)。
+- 2026-10-13（北京时间）Codex：完成用户确认的 UI、亮暗主题、自适应应用图标与精简 macOS 0.1.4 (5) 包。最终原生构建 `6e39034`，55 项回归与冻结程序启动/资源/配置重启/退出、签名、DMG 校验通过；桌面/窄屏亮暗浏览器交互验证通过。APP 69.76 MB、DMG 40.63 MB；安装包比宽泛收集对照减少约 56%。源码见 [PR #3](https://github.com/Gua16/GeoPort/pull/3)，合并记录见本文件完成项；该构建任务未更换用户本机安装。此版本未做新一轮 iPhone 实机测试，USB 定位与原生图标仍待独立回归。完整记录见 [设计 QA](design-qa.md) 与 [体积结果](docs/PACKAGING_SIZE_REQUIREMENTS.md)。
 
 - 2026-10-12 Codex：完成用户授权的主分支合并。[PR #2](https://github.com/Gua16/GeoPort/pull/2) 已合并到 `main`，合并提交 `14d08d9ecfef73004d5298aea1f0bfbc870afb20`。GitHub 当前未配置本 PR 的检查；采用此前已完成的 55 项本地测试与 USB 实机验证。本次仅新增 [APP 体积优化需求](docs/PACKAGING_SIZE_REQUIREMENTS.md) 与文档更新；用户要求暂不实施，0.1.3 (4) 安装版未变。
 
